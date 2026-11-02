@@ -7,8 +7,8 @@ import { authService } from '../services/auth.service'
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
-// Tiempo límite de inactividad: 30 minutos (1.800.000 ms)
-const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000
+// Tiempo límite de inactividad: 15 minutos (900.000 ms)
+const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000
 const LAST_ACTIVE_KEY = '@prestamos_last_activity_time'
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {

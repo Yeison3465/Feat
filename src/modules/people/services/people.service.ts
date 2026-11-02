@@ -94,14 +94,18 @@ export const peopleService = {
     return data
   },
 
-  async archivePerson(id: string, archived = true): Promise<void> {
-    const { error } = await supabase
+  async archivePerson(id: string, archived = true): Promise<Person> {
+    const { data, error } = await supabase
       .from('personas')
       .update({ archivado: archived, actualizado_en: new Date().toISOString() })
       .eq('id', id)
+      .select()
+      .single()
 
-    if (error) {
-      throw new Error(`Error al cambiar estado de persona: ${error.message}`)
+    if (error || !data) {
+      throw new Error(`Error al cambiar estado de persona: ${error?.message}`)
     }
+
+    return data
   },
 }

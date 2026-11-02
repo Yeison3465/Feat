@@ -88,14 +88,17 @@ export const PeopleProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return updated
   }
 
-  // Archivar persona y actualizar estado instantáneamente
+  // Archivar o desarchivar persona y actualizar estado instantáneamente en memoria
   const archivePerson = async (id: string, archived = true): Promise<void> => {
-    await peopleService.archivePerson(id, archived)
-    setAllPeople((prev) =>
-      archived
-        ? prev.filter((p) => p.id !== id)
-        : prev.map((p) => (p.id === id ? { ...p, archivado: false } : p))
-    )
+    const updated = await peopleService.archivePerson(id, archived)
+    setAllPeople((prev) => {
+      if (archived) {
+        return prev.filter((p) => p.id !== id)
+      } else {
+        const withoutTarget = prev.filter((p) => p.id !== id)
+        return [updated, ...withoutTarget]
+      }
+    })
   }
 
   const getPersonById = useCallback(

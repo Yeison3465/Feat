@@ -60,7 +60,9 @@ export const LoanForm: React.FC<LoanFormProps> = ({
   const [capitalText, setCapitalText] = useState<string>('')
   const [amortizationType, setAmortizationType] = useState<AmortizationType>('solo_interes')
   const [numeroCuotasText, setNumeroCuotasText] = useState<string>('1')
-  const [tasaMensualText, setTasaMensualText] = useState<string>('0')
+  const [tasaMensualText, setTasaMensualText] = useState<string>(
+    settings?.tasa_mensual_defecto?.toString() ?? '20'
+  )
   const [isZeroRateOverride, setIsZeroRateOverride] = useState<boolean>(false)
   const [notas, setNotas] = useState<string>('')
 
@@ -95,6 +97,15 @@ export const LoanForm: React.FC<LoanFormProps> = ({
     [people, selectedPersonId]
   )
 
+  // Sincronizar tasa mensual con la configuración global una vez cargada
+  useEffect(() => {
+    if (settings?.tasa_mensual_defecto !== undefined && !selectedPerson?.exento_interes_ordinario) {
+      setTasaMensualText((prev) =>
+        prev === '0' || prev === '' ? settings.tasa_mensual_defecto.toString() : prev
+      )
+    }
+  }, [settings, selectedPerson])
+
   // Ajustar tasa al cambiar de persona si está exenta de interés
   useEffect(() => {
     if (selectedPerson?.exento_interes_ordinario) {
@@ -102,8 +113,13 @@ export const LoanForm: React.FC<LoanFormProps> = ({
       setIsZeroRateOverride(true)
     } else {
       setIsZeroRateOverride(false)
+      setTasaMensualText((prev) =>
+        prev === '0' || prev === ''
+          ? (settings?.tasa_mensual_defecto?.toString() ?? '20')
+          : prev
+      )
     }
-  }, [selectedPerson])
+  }, [selectedPerson, settings])
 
   // Cálculos preliminares en vivo
   const capitalNum = parseCOP(capitalText)
@@ -477,7 +493,13 @@ export const LoanForm: React.FC<LoanFormProps> = ({
                     value={isZeroRateOverride}
                     onValueChange={(val) => {
                       setIsZeroRateOverride(val)
-                      setTasaMensualText('0')
+                      if (val) {
+                        setTasaMensualText('0')
+                      } else {
+                        setTasaMensualText(
+                          settings?.tasa_mensual_defecto?.toString() ?? '20'
+                        )
+                      }
                     }}
                     trackColor={{ false: '#232433', true: '#D34524' }}
                     thumbColor={isZeroRateOverride ? '#FFFFFF' : '#9CA3AF'}
@@ -494,7 +516,7 @@ export const LoanForm: React.FC<LoanFormProps> = ({
                       const clean = val.replace(/[^0-9.]/g, '')
                       setTasaMensualText(clean)
                     }}
-                    placeholder="0"
+                    placeholder={settings?.tasa_mensual_defecto?.toString() ?? '20'}
                     placeholderTextColor="#4B5563"
                     keyboardType="numeric"
                     className="flex-1 ml-2 text-white text-sm font-mono"
