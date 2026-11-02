@@ -5,7 +5,7 @@ import { Wallet } from 'lucide-react-native'
 
 export default function DashboardScreen() {
   return (
-    <SafeAreaView className="flex-1 bg-[#09090D] p-6 justify-between">
+    <SafeAreaView edges={['top']} className="flex-1 bg-[#09090D] p-6 justify-between">
       <View>
         <Text className="text-white text-2xl font-bold tracking-tight mb-2">
           Dashboard

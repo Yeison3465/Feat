@@ -5,14 +5,18 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "prestamos",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true
     },
-    "android": {
+    "android": {},
+    "web": {
+      "bundler": "metro",
+      "output": "single"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true

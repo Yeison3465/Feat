@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 export default function PrestamosScreen() {
   return (
-    <SafeAreaView className="flex-1 bg-[#09090D] p-6">
+    <SafeAreaView edges={['top']} className="flex-1 bg-[#09090D] p-6">
       <Text className="text-white text-2xl font-bold tracking-tight mb-2">
         Préstamos
       </Text>

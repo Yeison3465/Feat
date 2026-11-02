@@ -1,8 +1,10 @@
 import React, { useEffect } from 'react'
-import { Slot, useRouter, useSegments } from 'expo-router'
+import { Platform } from 'react-native'
+import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider, useAuth } from '../modules/auth/hooks/useAuth'
+import { PeopleProvider } from '../modules/people/context/PeopleContext'
 import { SplashScreen } from '../shared/components/SplashScreen'
 import '../../global.css'
 
@@ -11,25 +13,60 @@ function NavigationGuard() {
   const segments = useSegments()
   const router = useRouter()
 
+  const inAuthGroup = segments[0] === '(auth)'
+
+  useEffect(() => {
+    // Asegurar tema oscuro por defecto en Web
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document.documentElement.classList.add('dark')
+    }
+  }, [])
+
   useEffect(() => {
     if (loading) return
 
-    const inAuthGroup = segments[0] === '(auth)'
-
     if (!session && !inAuthGroup) {
-      // Redirigir a login si no hay sesión activa y se intenta acceder a rutas privadas
       router.replace('/(auth)/login')
     } else if (session && inAuthGroup) {
-      // Redirigir a las pestañas principales si ya existe una sesión autenticada
       router.replace('/(tabs)')
     }
-  }, [session, loading, segments, router])
+  }, [session, loading, inAuthGroup, router])
 
   if (loading) {
     return <SplashScreen />
   }
 
-  return <Slot />
+  // Prevenir que se rendericen rutas privadas si no hay sesión activa
+  if (!session && !inAuthGroup) {
+    return <SplashScreen />
+  }
+
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+      }}
+    >
+      <Stack.Screen name="index" />
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen
+        name="personas/crear"
+        options={{
+          animation: 'slide_from_right',
+          presentation: 'card',
+        }}
+      />
+      <Stack.Screen
+        name="personas/[id]"
+        options={{
+          animation: 'slide_from_right',
+          presentation: 'card',
+        }}
+      />
+    </Stack>
+  )
 }
 
 export default function RootLayout() {
@@ -37,7 +74,9 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <StatusBar style="light" />
       <AuthProvider>
-        <NavigationGuard />
+        <PeopleProvider>
+          <NavigationGuard />
+        </PeopleProvider>
       </AuthProvider>
     </SafeAreaProvider>
   )

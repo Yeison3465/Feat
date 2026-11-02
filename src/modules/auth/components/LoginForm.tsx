@@ -10,17 +10,21 @@ import {
   ScrollView,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Mail, Lock, Eye, EyeOff, ShieldCheck, Wallet } from 'lucide-react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Mail, Lock, Eye, EyeOff, Shield, Wallet, ArrowRight } from 'lucide-react-native'
 import { useAuth } from '../hooks/useAuth'
 import { ErrorMessage } from '../../../shared/components/ErrorMessage'
 
 export const LoginForm: React.FC = () => {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const { signIn, loading, error, clearError } = useAuth()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [emailFocused, setEmailFocused] = useState(false)
+  const [passwordFocused, setPasswordFocused] = useState(false)
   const [emailError, setEmailError] = useState<string | null>(null)
   const [passwordError, setPasswordError] = useState<string | null>(null)
 
@@ -62,44 +66,97 @@ export const LoginForm: React.FC = () => {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      className="flex-1 bg-[#09090D]"
+      className="flex-1 bg-[#060709]"
     >
+      {/* Resplandor radial superior idéntico a Figma */}
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: -60,
+          left: '50%',
+          transform: [{ translateX: -170 }],
+          width: 340,
+          height: 340,
+          borderRadius: 170,
+          backgroundColor: '#C94422',
+          opacity: 0.16,
+          ...(Platform.OS === 'web' ? { filter: 'blur(80px)' } : {}),
+        }}
+      />
+
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, justifyContent: 'space-between' }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: 'space-between',
+          paddingTop: Math.max(insets.top, 16),
+          paddingBottom: Math.max(insets.bottom, 16),
+        }}
         keyboardShouldPersistTaps="handled"
-        className="px-6 py-12"
+        className="px-6 max-w-md mx-auto w-full"
       >
-        <View className="items-center mt-6">
-          {/* Badge / Isotipo */}
-          <View className="w-14 h-14 rounded-2xl bg-[#14141B] border border-[#262630] items-center justify-center mb-4 shadow-lg shadow-black">
-            <View className="w-10 h-10 rounded-xl bg-[#C94422]/20 items-center justify-center">
-              <Wallet size={22} color="#FF7854" />
-            </View>
+        {/* Cabecera / Marca Figma */}
+        <View className="items-center mt-3 mb-2">
+          {/* Isotipo con caja redondeada oscura y halo coral */}
+          <View
+            style={{
+              shadowColor: '#C94422',
+              shadowOffset: { width: 0, height: 6 },
+              shadowOpacity: 0.3,
+              shadowRadius: 14,
+              elevation: 8,
+            }}
+            className="w-14 h-14 rounded-2xl bg-[#191316] border border-[#2F191D] items-center justify-center mb-3"
+          >
+            <Wallet size={26} color="#FF7854" strokeWidth={2.2} />
           </View>
 
-          <Text className="text-white text-2xl font-bold tracking-tight text-center mb-2">
+          {/* Badge [NOMBREAPP] con punto coral */}
+          <View className="flex-row items-center justify-center gap-1.5 mb-2">
+            <View className="w-1.5 h-1.5 rounded-full bg-[#E05335]" />
+            <Text className="text-zinc-400 text-xs font-mono font-semibold tracking-widest uppercase">
+              [NOMBREAPP]
+            </Text>
+          </View>
+
+          {/* Título y Subtítulo */}
+          <Text className="text-white text-3xl font-bold tracking-tight text-center mb-1.5">
             Acceso privado
           </Text>
-          <Text className="text-stone-400 text-sm text-center max-w-[280px]">
+          <Text className="text-zinc-400 text-sm text-center leading-5 max-w-[290px]">
             Ingresa tus credenciales para administrar tu cartera.
           </Text>
         </View>
 
-        {/* Formulario en Tarjeta */}
-        <View className="bg-[#14141B] border border-[#262630] rounded-3xl p-5 my-6 shadow-2xl shadow-black">
+        {/* Tarjeta del Formulario Elevada */}
+        <View className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-6 my-4 shadow-2xl shadow-black">
           {error && <ErrorMessage message={error} onRetry={clearError} />}
 
           {/* Campo: Correo Electrónico */}
           <View className="mb-4">
-            <Text className="text-stone-300 text-xs font-semibold uppercase tracking-wider mb-2">
+            <Text className="text-zinc-300 text-xs font-medium mb-2 ml-0.5">
               Correo electrónico
             </Text>
             <View
-              className={`flex-row items-center px-4 h-12 bg-[#09090D] rounded-xl border ${
-                emailError ? 'border-[#FB3758]' : 'border-[#262630] focus:border-[#FF7854]'
+              className={`flex-row items-center px-4 bg-[#0A0B10] rounded-2xl border transition-all ${
+                emailError
+                  ? 'border-[#FB3758]'
+                  : emailFocused || email.length > 0
+                  ? 'border-[#D34524]'
+                  : 'border-[#232433]'
               }`}
+              style={{ height: 52 }}
             >
-              <Mail size={18} color={emailError ? '#FB3758' : '#A8A29E'} />
+              <Mail
+                size={18}
+                color={
+                  emailError
+                    ? '#FB3758'
+                    : emailFocused || email.length > 0
+                    ? '#FF7854'
+                    : '#6B7280'
+                }
+              />
               <TextInput
                 value={email}
                 onChangeText={(text) => {
@@ -107,12 +164,14 @@ export const LoginForm: React.FC = () => {
                   if (emailError) setEmailError(null)
                   if (error) clearError()
                 }}
+                onFocus={() => setEmailFocused(true)}
+                onBlur={() => setEmailFocused(false)}
                 placeholder="alejandro@cartera.co"
-                placeholderTextColor="#52525B"
+                placeholderTextColor="#4B5563"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
-                className="flex-1 ml-3 text-white text-sm"
+                className="flex-1 ml-3 text-white text-[15px]"
               />
             </View>
             {emailError && (
@@ -123,16 +182,30 @@ export const LoginForm: React.FC = () => {
           </View>
 
           {/* Campo: Contraseña */}
-          <View className="mb-2">
-            <Text className="text-stone-300 text-xs font-semibold uppercase tracking-wider mb-2">
+          <View className="mb-1">
+            <Text className="text-zinc-300 text-xs font-medium mb-2 ml-0.5">
               Contraseña
             </Text>
             <View
-              className={`flex-row items-center px-4 h-12 bg-[#09090D] rounded-xl border ${
-                passwordError ? 'border-[#FB3758]' : 'border-[#262630] focus:border-[#FF7854]'
+              className={`flex-row items-center px-4 bg-[#0A0B10] rounded-2xl border transition-all ${
+                passwordError
+                  ? 'border-[#FB3758]'
+                  : passwordFocused
+                  ? 'border-[#D34524]'
+                  : 'border-[#232433]'
               }`}
+              style={{ height: 52 }}
             >
-              <Lock size={18} color={passwordError ? '#FB3758' : '#A8A29E'} />
+              <Lock
+                size={18}
+                color={
+                  passwordError
+                    ? '#FB3758'
+                    : passwordFocused
+                    ? '#FF7854'
+                    : '#6B7280'
+                }
+              />
               <TextInput
                 value={password}
                 onChangeText={(text) => {
@@ -140,21 +213,23 @@ export const LoginForm: React.FC = () => {
                   if (passwordError) setPasswordError(null)
                   if (error) clearError()
                 }}
-                placeholder="••••••••••••"
-                placeholderTextColor="#52525B"
+                onFocus={() => setPasswordFocused(true)}
+                onBlur={() => setPasswordFocused(false)}
+                placeholder="supersecretpassword1%"
+                placeholderTextColor="#4B5563"
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
-                className="flex-1 ml-3 text-white text-sm"
+                className="flex-1 ml-3 text-white text-[15px] font-mono"
               />
               <Pressable
                 onPress={() => setShowPassword(!showPassword)}
-                hitSlop={8}
+                hitSlop={10}
                 className="p-1"
               >
                 {showPassword ? (
-                  <EyeOff size={18} color="#A8A29E" />
+                  <EyeOff size={18} color="#9CA3AF" />
                 ) : (
-                  <Eye size={18} color="#A8A29E" />
+                  <Eye size={18} color="#6B7280" />
                 )}
               </Pressable>
             </View>
@@ -165,8 +240,8 @@ export const LoginForm: React.FC = () => {
             )}
           </View>
 
-          {/* Enlace Olvidaste Contraseña */}
-          <View className="items-end mb-6 mt-1">
+          {/* Enlace: ¿Olvidaste tu contraseña? */}
+          <View className="items-end mb-6 mt-3">
             <Pressable
               onPress={() => router.push('/(auth)/recuperar-password')}
               hitSlop={8}
@@ -177,33 +252,38 @@ export const LoginForm: React.FC = () => {
             </Pressable>
           </View>
 
-          {/* Botón Principal */}
+          {/* Botón Iniciar Sesión → */}
           <Pressable
             onPress={handleSubmit}
             disabled={loading}
-            className={`w-full h-12 rounded-xl items-center justify-center flex-row ${
-              loading ? 'bg-[#C94422]/60' : 'bg-[#C94422] active:bg-[#FF7854]'
+            style={{ height: 52 }}
+            className={`w-full rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#D34524]/20 ${
+              loading ? 'bg-[#D34524]/60' : 'bg-[#D34524] active:bg-[#E54F2C]'
             }`}
           >
             {loading ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Text className="text-white text-sm font-bold tracking-wide">
-                Iniciar sesión
-              </Text>
+              <View className="flex-row items-center justify-center gap-2">
+                <Text className="text-white text-[15px] font-bold tracking-wide">
+                  Iniciar sesión
+                </Text>
+                <ArrowRight size={17} color="#FFFFFF" strokeWidth={2.5} />
+              </View>
             )}
           </Pressable>
         </View>
 
-        {/* Footer y Aviso de Seguridad */}
-        <View className="items-center pb-4">
-          <View className="flex-row items-center mb-2 px-4">
-            <ShieldCheck size={14} color="#A8A29E" />
-            <Text className="text-stone-400 text-xs text-center ml-1.5">
+        {/* Sección Inferior / Card de Seguridad Figma */}
+        <View className="items-center mt-2 pb-2">
+          <View className="w-full bg-[#0F1017] border border-[#1C1D29] rounded-2xl p-4 flex-row items-center gap-3 mb-4">
+            <Shield size={18} color="#6B7280" />
+            <Text className="text-zinc-400 text-xs flex-1 leading-relaxed">
               Acceso exclusivo para el titular. Los prestatarios no tienen acceso a esta aplicación.
             </Text>
           </View>
-          <Text className="text-stone-600 text-[11px] tracking-wider mt-1">
+
+          <Text className="text-zinc-600 text-[11px] font-mono tracking-wider">
             Sistema seguro · Moneda COP · v2.4
           </Text>
         </View>
@@ -211,4 +291,3 @@ export const LoginForm: React.FC = () => {
     </KeyboardAvoidingView>
   )
 }
-

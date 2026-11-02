@@ -1,8 +1,18 @@
 {
-  "extends": "./node_modules/expo/tsconfig.base.json",
+  "extends": "expo/tsconfig.base.json",
   "compilerOptions": {
     "strict": true,
-    "baseUrl": ".",
+    "allowJs": true,
+    "esModuleInterop": true,
+    "jsx": "react-jsx",
+    "lib": ["DOM", "ESNext"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "customConditions": ["react-native"],
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "target": "ESNext",
     "paths": {
       "@/*": ["./src/*"]
     }
@@ -15,4 +25,3 @@
     "nativewind-env.d.ts"
   ]
 }
-
