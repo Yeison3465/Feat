@@ -2,16 +2,19 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { loansService } from '../services/loans.service'
 import {
   CreateLoanDTO,
-  LoanFilter,
+  LoanConditionsSnapshot,
   LoanStatus,
   LoanSummaryMetrics,
   LoanWithDetails,
+  ObligationItem,
 } from '../types'
 import { useAuth } from '../../auth/hooks/useAuth'
 
 interface LoansContextType {
   loans: LoanWithDetails[]
   allLoans: LoanWithDetails[]
+  overdueObligations: ObligationItem[]
+  upcomingObligations: ObligationItem[]
   loading: boolean
   refreshing: boolean
   error: string | null
@@ -69,12 +72,30 @@ export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [session, loadLoans])
 
-  // Filtrado reactivo en memoria con 0 ms de latencia
+  // Filtrado reactivo en memoria con 0 ms de latencia y coherencia con cuotas vencidas
   const filteredLoans = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0]
     let result = allLoans
 
     if (estadoFilter !== 'todos') {
-      result = result.filter((l) => l.estado === estadoFilter)
+      result = result.filter((l) => {
+        const hasOverdueInstallment = (l.cuotas ?? []).some(
+          (c) => !c.esta_liquidada && c.fecha_vencimiento < today
+        )
+
+        if (estadoFilter === 'en_mora') {
+          return (
+            l.estado === 'en_mora' ||
+            (l.estado === 'activo' && hasOverdueInstallment)
+          )
+        }
+
+        if (estadoFilter === 'activo') {
+          return l.estado === 'activo' && !hasOverdueInstallment
+        }
+
+        return l.estado === estadoFilter
+      })
     }
 
     if (searchQuery.trim()) {
@@ -101,7 +122,77 @@ export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [allLoans]
   )
 
-  // Métricas financieras calculadas en memoria
+  // Listas operativas de Atrasados (SCR-17) y Próximos Vencimientos (SCR-18)
+  const { overdueObligations, upcomingObligations } = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0]
+    const todayMs = new Date(`${todayStr}T00:00:00`).getTime()
+    const overdue: ObligationItem[] = []
+    const upcoming: ObligationItem[] = []
+
+    for (const loan of allLoans) {
+      if (loan.estado === 'completado' || loan.estado === 'cancelado') continue
+
+      const snapshot = (loan.resumen_condiciones as unknown as LoanConditionsSnapshot) || null
+      const diasGracia = snapshot?.dias_gracia ?? 3
+
+      const totalCapPagado = (loan.cuotas ?? []).reduce(
+        (sum, c) => sum + (c.capital_pagado || 0),
+        0
+      )
+      const capitalPendientePrestamo = Math.max(0, loan.capital_original - totalCapPagado)
+
+      const sortedCuotas = [...(loan.cuotas ?? [])].sort(
+        (a, b) => a.numero_cuota - b.numero_cuota
+      )
+
+      for (const cuota of sortedCuotas) {
+        if (cuota.esta_liquidada) continue
+
+        const dueMs = new Date(`${cuota.fecha_vencimiento}T00:00:00`).getTime()
+        const daysDiff = Math.round((dueMs - todayMs) / (1000 * 60 * 60 * 24))
+
+        const moraPendiente = Math.max(0, (cuota.mora_acumulada || 0) - (cuota.mora_pagada || 0))
+        const interesPendiente = Math.max(
+          0,
+          (cuota.interes_esperado || 0) - (cuota.interes_pagado || 0)
+        )
+        const capCuotaPendiente = Math.max(
+          0,
+          (cuota.capital_esperado || 0) - (cuota.capital_pagado || 0)
+        )
+        const saldoExigible = moraPendiente + interesPendiente + capCuotaPendiente
+
+        const item: ObligationItem = {
+          installment: cuota,
+          loan,
+          borrowerName: loan.persona?.nombre ?? snapshot?.persona_nombre ?? 'Prestatario',
+          borrowerPhone: loan.persona?.telefono ?? null,
+          daysDiff,
+          inGracePeriod: daysDiff < 0 && Math.abs(daysDiff) <= diasGracia,
+          diasGracia,
+          saldoExigible,
+          moraPendiente,
+          interesPendiente,
+          capitalPendientePrestamo,
+        }
+
+        if (daysDiff < 0) {
+          overdue.push(item)
+        } else {
+          upcoming.push(item)
+        }
+      }
+    }
+
+    // Atrasados: ordenar desde el más antiguo (mayor atraso primero)
+    overdue.sort((a, b) => a.daysDiff - b.daysDiff)
+    // Próximos vencimientos: ordenar desde el que vence más pronto (hoy primero)
+    upcoming.sort((a, b) => a.daysDiff - b.daysDiff)
+
+    return { overdueObligations: overdue, upcomingObligations: upcoming }
+  }, [allLoans])
+
+  // Métricas financieras calculadas en memoria con precisión para solo_interes, pago_unico y cuotas_fijas
   const metrics = useMemo<LoanSummaryMetrics>(() => {
     const today = new Date().toISOString().split('T')[0]
     let totalCapitalPrestado = 0
@@ -112,23 +203,26 @@ export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     let cuotasVencidasCount = 0
 
     for (const loan of allLoans) {
+      if (loan.estado === 'cancelado') continue
+
       totalCapitalPrestado += loan.capital_original
+      let loanCapitalPagado = 0
 
       if (loan.cuotas && loan.cuotas.length > 0) {
         for (const cuota of loan.cuotas) {
-          totalInteresEsperado += cuota.interes_esperado
-          totalInteresCobrado += cuota.interes_pagado
-          totalMoraCobrada += cuota.mora_pagada
-
-          const capPendienteCuota = Math.max(0, cuota.capital_esperado - cuota.capital_pagado)
-          totalCapitalPendiente += capPendienteCuota
+          totalInteresEsperado += cuota.interes_esperado || 0
+          totalInteresCobrado += cuota.interes_pagado || 0
+          totalMoraCobrada += cuota.mora_pagada || 0
+          loanCapitalPagado += cuota.capital_pagado || 0
 
           if (!cuota.esta_liquidada && cuota.fecha_vencimiento < today) {
             cuotasVencidasCount++
           }
         }
-      } else {
-        totalCapitalPendiente += loan.capital_original
+      }
+
+      if (loan.estado !== 'completado') {
+        totalCapitalPendiente += Math.max(0, loan.capital_original - loanCapitalPagado)
       }
     }
 
@@ -146,6 +240,8 @@ export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     () => ({
       loans: filteredLoans,
       allLoans,
+      overdueObligations,
+      upcomingObligations,
       loading,
       refreshing,
       error,
@@ -161,6 +257,8 @@ export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [
       filteredLoans,
       allLoans,
+      overdueObligations,
+      upcomingObligations,
       loading,
       refreshing,
       error,
@@ -182,4 +280,3 @@ export function useLoansContext() {
   }
   return context
 }
-

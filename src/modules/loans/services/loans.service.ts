@@ -8,7 +8,24 @@ import {
 } from '../types'
 
 export const loansService = {
+  /**
+   * Sincroniza estados ('activo' <-> 'en_mora') y liquida mora idempotente
+   * según los días de gracia pactados y la configuración del titular.
+   */
+  async syncOverdueAndLateFees(): Promise<void> {
+    try {
+      const { error } = await supabase.rpc('sincronizar_estados_y_mora')
+      if (error) {
+        console.warn('Advertencia al sincronizar estados y mora:', error.message)
+      }
+    } catch (err) {
+      console.warn('Error no bloqueante en syncOverdueAndLateFees:', err)
+    }
+  },
+
   async getLoans(filter?: LoanFilter): Promise<LoanWithDetails[]> {
+    await this.syncOverdueAndLateFees()
+
     let query = supabase
       .from('prestamos')
       .select('*, persona:personas(id, nombre, telefono, direccion, exento_interes_ordinario), cuotas(*)')

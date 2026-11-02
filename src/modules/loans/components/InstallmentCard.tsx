@@ -3,6 +3,13 @@ import { View, Text, Pressable } from 'react-native'
 import { Calendar, CheckCircle2, Clock, AlertTriangle, ChevronRight } from 'lucide-react-native'
 import { LoanInstallment } from '../types'
 import { formatCOP, formatDateFriendly } from '../../../shared/utils/currency'
+import Animated, {
+  FadeInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  useReducedMotion,
+} from 'react-native-reanimated'
 
 interface InstallmentCardProps {
   readonly installment: LoanInstallment
@@ -10,6 +17,11 @@ interface InstallmentCardProps {
 }
 
 export const InstallmentCard: React.FC<InstallmentCardProps> = ({ installment, onPress }) => {
+  const reducedMotion = useReducedMotion()
+  const scale = useSharedValue(1)
+  const scaleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }))
   const today = new Date().toISOString().split('T')[0]
   const isOverdue = !installment.esta_liquidada && installment.fecha_vencimiento < today
 
@@ -47,10 +59,20 @@ export const InstallmentCard: React.FC<InstallmentCardProps> = ({ installment, o
   }
 
   return (
-    <Pressable
-      onPress={onPress}
-      className="bg-[#101119] border border-[#1C1E2B] active:border-[#2C2F45] rounded-2xl p-4 mb-3"
+    <Animated.View
+      entering={reducedMotion ? undefined : FadeInDown.duration(220).springify()}
+      style={scaleStyle}
     >
+      <Pressable
+        onPressIn={() => {
+          if (!reducedMotion && onPress) scale.value = withSpring(0.98, { damping: 16, stiffness: 300 })
+        }}
+        onPressOut={() => {
+          if (!reducedMotion) scale.value = withSpring(1, { damping: 16, stiffness: 300 })
+        }}
+        onPress={onPress}
+        className="bg-[#101119] border border-[#1C1E2B] active:border-[#2C2F45] rounded-2xl p-4 mb-3"
+      >
       {/* Cabecera de Cuota */}
       <View className="flex-row items-center justify-between mb-2">
         <View className="flex-row items-center">
@@ -126,5 +148,6 @@ export const InstallmentCard: React.FC<InstallmentCardProps> = ({ installment, o
         )}
       </View>
     </Pressable>
+    </Animated.View>
   )
 }

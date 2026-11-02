@@ -3,6 +3,8 @@ import { View, Text, TextInput, Pressable, ActivityIndicator } from 'react-nativ
 import { Percent, Calendar, Check, AlertCircle } from 'lucide-react-native'
 import { LoanSettings, UpdateSettingsDTO } from '../types'
 import { ErrorMessage } from '../../../shared/components/ErrorMessage'
+import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated'
+import { AnimatedPressable } from '../../../shared/components/AnimatedPressable'
 
 interface InterestSettingsCardProps {
   readonly settings: LoanSettings | null
@@ -15,6 +17,7 @@ export const InterestSettingsCard: React.FC<InterestSettingsCardProps> = ({
   onSave,
   loading,
 }) => {
+  const reducedMotion = useReducedMotion()
   const [tasaMensual, setTasaMensual] = useState('20')
   const [diasGracia, setDiasGracia] = useState('3')
   const [savedSuccess, setSavedSuccess] = useState(false)
@@ -57,7 +60,10 @@ export const InterestSettingsCard: React.FC<InterestSettingsCardProps> = ({
   }
 
   return (
-    <View className="bg-[#12131C] border border-[#232433] rounded-[24px] p-5 mb-5 shadow-xl shadow-black">
+    <Animated.View
+      entering={reducedMotion ? undefined : FadeInDown.duration(260).springify()}
+      className="bg-[#12131C] border border-[#232433] rounded-[24px] p-5 mb-5 shadow-xl shadow-black"
+    >
       <View className="flex-row items-center justify-between mb-2">
         <Text className="text-white text-base font-bold">
           Condiciones predeterminadas
@@ -124,7 +130,7 @@ export const InterestSettingsCard: React.FC<InterestSettingsCardProps> = ({
       </View>
 
       {/* Botón Guardar */}
-      <Pressable
+      <AnimatedPressable
         onPress={handleSave}
         disabled={loading}
         className={`w-full h-11 rounded-xl items-center justify-center flex-row ${
@@ -149,8 +155,8 @@ export const InterestSettingsCard: React.FC<InterestSettingsCardProps> = ({
             Guardar condiciones
           </Text>
         )}
-      </Pressable>
-    </View>
+      </AnimatedPressable>
+    </Animated.View>
   )
 }
 

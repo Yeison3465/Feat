@@ -21,6 +21,7 @@ import { LoanInstallment } from '../types'
 import { InstallmentPaymentItem } from '../../payments/types'
 import { paymentsService } from '../../payments/services/payments.service'
 import { formatCOP, formatDateFriendly } from '../../../shared/utils/currency'
+import Animated, { FadeInDown, SlideInDown, useReducedMotion } from 'react-native-reanimated'
 
 interface InstallmentDetailModalProps {
   readonly visible: boolean
@@ -36,6 +37,7 @@ export const InstallmentDetailModal: React.FC<InstallmentDetailModalProps> = ({
   onRegisterPayment,
 }) => {
   const router = useRouter()
+  const reducedMotion = useReducedMotion()
   const [allocations, setAllocations] = useState<InstallmentPaymentItem[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -67,7 +69,10 @@ export const InstallmentDetailModal: React.FC<InstallmentDetailModalProps> = ({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View className="flex-1 bg-black/80 justify-end">
-        <View className="bg-[#12131A] border-t border-[#232433] rounded-t-3xl p-6 max-h-[85%] max-w-md w-full mx-auto">
+        <Animated.View
+          entering={reducedMotion ? undefined : SlideInDown.duration(260).springify()}
+          className="bg-[#12131A] border-t border-[#232433] rounded-t-3xl p-6 max-h-[85%] max-w-md w-full mx-auto"
+        >
           {/* Cabecera del Modal (SCR-12) */}
           <View className="flex-row items-center justify-between mb-4">
             <View className="flex-row items-center gap-2.5">
@@ -177,36 +182,44 @@ export const InstallmentDetailModal: React.FC<InstallmentDetailModalProps> = ({
                 </Text>
               </View>
             ) : (
-              allocations.map((item) => (
-                <Pressable
+              allocations.map((item, idx) => (
+                <Animated.View
                   key={item.id}
-                  onPress={() => {
-                    onClose()
-                    router.push(`/pagos/${item.pago_id}`)
-                  }}
-                  className="bg-[#0A0B10] border border-[#1C1E2B] active:border-[#2C2F45] rounded-2xl p-3.5 mb-2 flex-row items-center justify-between"
+                  entering={
+                    reducedMotion
+                      ? undefined
+                      : FadeInDown.delay(Math.min(idx * 45, 220)).duration(220)
+                  }
                 >
-                  <View>
-                    <Text className="text-white text-xs font-bold capitalize">
-                      {item.componente === 'interes'
-                        ? 'Abono a interés ordinario'
-                        : item.componente === 'capital'
-                        ? 'Abono a capital'
-                        : 'Abono a mora'}
-                    </Text>
-                    <Text className="text-zinc-500 text-[11px] font-mono mt-0.5">
-                      {(item.pago?.fecha_recepcion || item.creado_en || '').split('T')[0]} ·{' '}
-                      {item.pago?.metodo_pago || 'efectivo'}
-                    </Text>
-                  </View>
+                  <Pressable
+                    onPress={() => {
+                      onClose()
+                      router.push(`/pagos/${item.pago_id}`)
+                    }}
+                    className="bg-[#0A0B10] border border-[#1C1E2B] active:border-[#2C2F45] rounded-2xl p-3.5 mb-2 flex-row items-center justify-between"
+                  >
+                    <View>
+                      <Text className="text-white text-xs font-bold capitalize">
+                        {item.componente === 'interes'
+                          ? 'Abono a interés ordinario'
+                          : item.componente === 'capital'
+                          ? 'Abono a capital'
+                          : 'Abono a mora'}
+                      </Text>
+                      <Text className="text-zinc-500 text-[11px] font-mono mt-0.5">
+                        {(item.pago?.fecha_recepcion || item.creado_en || '').split('T')[0]} ·{' '}
+                        {item.pago?.metodo_pago || 'efectivo'}
+                      </Text>
+                    </View>
 
-                  <View className="flex-row items-center gap-2">
-                    <Text className="text-emerald-400 text-xs font-mono font-bold">
-                      + {formatCOP(item.monto)}
-                    </Text>
-                    <ExternalLink size={13} color="#FF7854" />
-                  </View>
-                </Pressable>
+                    <View className="flex-row items-center gap-2">
+                      <Text className="text-emerald-400 text-xs font-mono font-bold">
+                        + {formatCOP(item.monto)}
+                      </Text>
+                      <ExternalLink size={13} color="#FF7854" />
+                    </View>
+                  </Pressable>
+                </Animated.View>
               ))
             )}
           </ScrollView>
@@ -233,7 +246,7 @@ export const InstallmentDetailModal: React.FC<InstallmentDetailModalProps> = ({
               </Pressable>
             )}
           </View>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   )

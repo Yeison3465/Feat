@@ -61,3 +61,20 @@ export interface LoanSummaryMetrics {
   cuotasVencidasCount: number
 }
 
+export type DueHorizonFilter = 'hoy' | '7d' | '15d' | '30d' | 'todos'
+
+export interface ObligationItem {
+  installment: LoanInstallment
+  loan: LoanWithDetails
+  borrowerName: string
+  borrowerPhone?: string | null
+  daysDiff: number
+  inGracePeriod: boolean
+  diasGracia: number
+  saldoExigible: number
+  moraPendiente: number
+  interesPendiente: number
+  capitalPendientePrestamo: number
+}
+
+

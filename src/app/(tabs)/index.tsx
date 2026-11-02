@@ -6,9 +6,13 @@ import { Wallet, Plus, Users, CreditCard, AlertTriangle, TrendingUp } from 'luci
 import { useLoans } from '../../modules/loans/hooks/useLoans'
 import { LoanCard } from '../../modules/loans/components/LoanCard'
 import { formatCOP } from '../../shared/utils/currency'
+import Animated, { FadeInDown, FadeInUp, useReducedMotion } from 'react-native-reanimated'
+import { SkeletonCardList } from '../../shared/components/SkeletonBox'
+import { AnimatedPressable } from '../../shared/components/AnimatedPressable'
 
 export default function DashboardScreen() {
   const router = useRouter()
+  const reducedMotion = useReducedMotion()
   const { allLoans, metrics, loading } = useLoans()
 
   const activeLoans = allLoans.filter((l) => l.estado === 'activo' || l.estado === 'en_mora')
@@ -37,7 +41,10 @@ export default function DashboardScreen() {
         </View>
 
         {/* Tarjeta Hero: Cartera Pendiente en Vivo */}
-        <View className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-5 mb-5 shadow-2xl shadow-black">
+        <Animated.View
+          entering={reducedMotion ? undefined : FadeInDown.duration(260).springify()}
+          className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-5 mb-5 shadow-2xl shadow-black"
+        >
           <Text className="text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-2">
             Capital total pendiente
           </Text>
@@ -81,26 +88,31 @@ export default function DashboardScreen() {
               </Text>
             </View>
           )}
-        </View>
+        </Animated.View>
 
         {/* Botones de Acción Rápida (4 Circulares / Píldoras Figma) */}
-        <View className="flex-row gap-3 mb-6">
-          <Pressable
+        <Animated.View
+          entering={reducedMotion ? undefined : FadeInUp.delay(60).duration(260).springify()}
+          className="flex-row gap-3 mb-6"
+        >
+          <AnimatedPressable
             onPress={() => router.push('/prestamos/crear')}
-            className="flex-1 bg-[#D34524] active:bg-[#E54F2C] py-3 rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#D34524]/20"
+            containerClassName="flex-1"
+            className="bg-[#D34524] active:bg-[#E54F2C] py-3 rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#D34524]/20"
           >
             <Plus size={16} color="#FFFFFF" strokeWidth={2.5} />
             <Text className="text-white text-xs font-bold ml-1.5">Nuevo préstamo</Text>
-          </Pressable>
+          </AnimatedPressable>
 
-          <Pressable
+          <AnimatedPressable
             onPress={() => router.push('/personas/crear')}
-            className="flex-1 bg-[#151622] border border-[#232433] active:bg-[#1E2030] py-3 rounded-2xl items-center justify-center flex-row"
+            containerClassName="flex-1"
+            className="bg-[#151622] border border-[#232433] active:bg-[#1E2030] py-3 rounded-2xl items-center justify-center flex-row"
           >
             <Users size={16} color="#FF7854" />
             <Text className="text-white text-xs font-bold ml-1.5">Nueva persona</Text>
-          </Pressable>
-        </View>
+          </AnimatedPressable>
+        </Animated.View>
 
         {/* Sección: Préstamos Recientes */}
         <View className="mb-4">
@@ -113,7 +125,9 @@ export default function DashboardScreen() {
             </Pressable>
           </View>
 
-          {recentLoans.length === 0 ? (
+          {loading ? (
+            <SkeletonCardList count={2} />
+          ) : recentLoans.length === 0 ? (
             <View className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-6 items-center">
               <CreditCard size={28} color="#6B7280" />
               <Text className="text-white text-sm font-bold mt-2">

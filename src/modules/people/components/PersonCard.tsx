@@ -4,7 +4,13 @@ import { useRouter } from 'expo-router'
 import { ChevronRight, Phone, ShieldAlert } from 'lucide-react-native'
 import { Person } from '../types'
 import { getInitials } from '../../../shared/utils/initials'
-import Animated, { FadeInDown } from 'react-native-reanimated'
+import Animated, {
+  FadeInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  useReducedMotion,
+} from 'react-native-reanimated'
 
 interface PersonCardProps {
   readonly person: Person
@@ -12,11 +18,25 @@ interface PersonCardProps {
 
 export const PersonCard: React.FC<PersonCardProps> = ({ person }) => {
   const router = useRouter()
+  const reducedMotion = useReducedMotion()
+  const scale = useSharedValue(1)
+  const scaleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }))
   const initials = getInitials(person.nombre)
 
   return (
-    <Animated.View entering={FadeInDown.duration(240).springify()}>
+    <Animated.View
+      entering={reducedMotion ? undefined : FadeInDown.duration(240).springify()}
+      style={scaleStyle}
+    >
       <Pressable
+        onPressIn={() => {
+          if (!reducedMotion) scale.value = withSpring(0.98, { damping: 16, stiffness: 300 })
+        }}
+        onPressOut={() => {
+          if (!reducedMotion) scale.value = withSpring(1, { damping: 16, stiffness: 300 })
+        }}
         onPress={() => router.push(`/personas/${person.id}`)}
         className="w-full bg-[#12131C] border border-[#232433] active:border-[#383A4F] rounded-2xl p-4 mb-3 flex-row items-center justify-between shadow-lg shadow-black/40"
       >

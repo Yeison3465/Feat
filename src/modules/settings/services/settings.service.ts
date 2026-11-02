@@ -27,7 +27,7 @@ export const settingsService = {
           tasa_mensual_defecto: 20,
           tasa_mora_defecto: 0,
           dias_gracia_defecto: 3,
-          base_calculo_mora: 'capital',
+          base_calculo_mora: 'SOLO_CAPITAL',
         })
         .select()
         .single()

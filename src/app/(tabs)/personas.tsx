@@ -14,6 +14,8 @@ import { Search, Plus, Users, X, RefreshCw } from 'lucide-react-native'
 import { usePeople } from '../../modules/people/hooks/usePeople'
 import { PersonCard } from '../../modules/people/components/PersonCard'
 import { ErrorMessage } from '../../shared/components/ErrorMessage'
+import { SkeletonCardList } from '../../shared/components/SkeletonBox'
+import { AnimatedPressable } from '../../shared/components/AnimatedPressable'
 
 export default function PersonasScreen() {
   const router = useRouter()
@@ -41,7 +43,7 @@ export default function PersonasScreen() {
             </Text>
           </View>
 
-          <Pressable
+          <AnimatedPressable
             onPress={() => router.push('/personas/crear')}
             className="flex-row items-center bg-[#D34524] active:bg-[#E54F2C] px-3.5 py-2 rounded-xl shadow-md shadow-[#D34524]/20"
           >
@@ -49,7 +51,7 @@ export default function PersonasScreen() {
             <Text className="text-white text-xs font-bold ml-1">
               Crear
             </Text>
-          </Pressable>
+          </AnimatedPressable>
         </View>
 
         {/* Barra de Búsqueda */}
@@ -86,11 +88,8 @@ export default function PersonasScreen() {
 
       {/* Contenido / Listado */}
       {loading && !refreshing ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="small" color="#FF7854" />
-          <Text className="text-zinc-400 text-xs mt-3">
-            Sincronizando directorio...
-          </Text>
+        <View className="flex-1 px-6 pt-2">
+          <SkeletonCardList count={4} />
         </View>
       ) : error ? (
         <View className="flex-1 px-6 justify-center items-center">

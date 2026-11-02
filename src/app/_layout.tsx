@@ -95,6 +95,13 @@ function NavigationGuard() {
             presentation: 'card',
           }}
         />
+        <Stack.Screen
+          name="vencimientos/index"
+          options={{
+            animation: 'slide_from_right',
+            presentation: 'card',
+          }}
+        />
       </Stack>
     </View>
   )

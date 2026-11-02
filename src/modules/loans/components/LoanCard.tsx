@@ -5,7 +5,13 @@ import { Calendar, ChevronRight, AlertTriangle, CheckCircle2, ShieldCheck } from
 import { LoanWithDetails } from '../types'
 import { getInitials } from '../../../shared/utils/initials'
 import { formatCOP, formatDateFriendly } from '../../../shared/utils/currency'
-import Animated, { FadeInDown } from 'react-native-reanimated'
+import Animated, {
+  FadeInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  useReducedMotion,
+} from 'react-native-reanimated'
 
 interface LoanCardProps {
   readonly loan: LoanWithDetails
@@ -13,6 +19,11 @@ interface LoanCardProps {
 
 export const LoanCard: React.FC<LoanCardProps> = ({ loan }) => {
   const router = useRouter()
+  const reducedMotion = useReducedMotion()
+  const scale = useSharedValue(1)
+  const scaleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }))
   const borrowerName = loan.persona?.nombre || 'Prestatario'
   const initials = getInitials(borrowerName)
   const isExempt = loan.persona?.exento_interes_ordinario || loan.tasa_mensual === 0
@@ -61,8 +72,17 @@ export const LoanCard: React.FC<LoanCardProps> = ({ loan }) => {
   }
 
   return (
-    <Animated.View entering={FadeInDown.duration(240).springify()}>
+    <Animated.View
+      entering={reducedMotion ? undefined : FadeInDown.duration(240).springify()}
+      style={scaleStyle}
+    >
       <Pressable
+        onPressIn={() => {
+          if (!reducedMotion) scale.value = withSpring(0.98, { damping: 16, stiffness: 300 })
+        }}
+        onPressOut={() => {
+          if (!reducedMotion) scale.value = withSpring(1, { damping: 16, stiffness: 300 })
+        }}
         onPress={() => router.push(`/prestamos/${loan.id}`)}
         className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-5 mb-4 shadow-xl shadow-black active:border-[#D34524]/50"
       >

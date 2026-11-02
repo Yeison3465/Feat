@@ -405,6 +405,10 @@ export type Database = {
         }
         Returns: Json
       }
+      sincronizar_estados_y_mora: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
     }
     Enums: {
       componente_pago: "mora" | "interes" | "capital"

@@ -5,8 +5,12 @@ import { LogOut, User, Shield } from 'lucide-react-native'
 import { useAuth } from '../../modules/auth/hooks/useAuth'
 import { useSettings } from '../../modules/settings/hooks/useSettings'
 import { InterestSettingsCard } from '../../modules/settings/components/InterestSettingsCard'
+import { LateFeeSettingsCard } from '../../modules/settings/components/LateFeeSettingsCard'
+import Animated, { FadeInUp, useReducedMotion } from 'react-native-reanimated'
+import { AnimatedPressable } from '../../shared/components/AnimatedPressable'
 
 export default function ConfiguracionScreen() {
+  const reducedMotion = useReducedMotion()
   const { user, signOut, loading: authLoading } = useAuth()
   const { settings, saving, updateSettings } = useSettings()
 
@@ -30,8 +34,18 @@ export default function ConfiguracionScreen() {
           loading={saving}
         />
 
+        {/* Tarjeta de Configuración de Mora (SCR-20) */}
+        <LateFeeSettingsCard
+          settings={settings}
+          onSave={updateSettings}
+          loading={saving}
+        />
+
         {/* Tarjeta de Cuenta de Administrador */}
-        <View className="bg-[#12131C] border border-[#232433] rounded-[24px] p-5 mb-5 shadow-xl shadow-black">
+        <Animated.View
+          entering={reducedMotion ? undefined : FadeInUp.delay(120).duration(260).springify()}
+          className="bg-[#12131C] border border-[#232433] rounded-[24px] p-5 mb-5 shadow-xl shadow-black"
+        >
           <Text className="text-stone-400 text-xs font-semibold uppercase tracking-wider mb-4">
             Cuenta administrativa
           </Text>
@@ -56,10 +70,10 @@ export default function ConfiguracionScreen() {
               Aislamiento por usuario garantizado (RLS activo)
             </Text>
           </View>
-        </View>
+        </Animated.View>
 
         {/* Botón de Cerrar Sesión */}
-        <Pressable
+        <AnimatedPressable
           onPress={signOut}
           disabled={authLoading}
           style={{ height: 48 }}
@@ -75,7 +89,7 @@ export default function ConfiguracionScreen() {
               </Text>
             </>
           )}
-        </Pressable>
+        </AnimatedPressable>
       </ScrollView>
     </SafeAreaView>
   )

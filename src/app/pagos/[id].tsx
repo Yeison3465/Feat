@@ -24,11 +24,13 @@ import { useLoans } from '../../modules/loans/hooks/useLoans'
 import { formatCOP } from '../../shared/utils/currency'
 import { getSafeBottomInset } from '../../shared/utils/responsive'
 import { ErrorMessage } from '../../shared/components/ErrorMessage'
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated'
+import Animated, { FadeInDown, FadeInUp, ZoomIn, useReducedMotion } from 'react-native-reanimated'
+import { SkeletonCardList } from '../../shared/components/SkeletonBox'
 
 export default function DetallePagoScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const reducedMotion = useReducedMotion()
   const { id } = useLocalSearchParams<{ id: string }>()
   const { reload: reloadLoans } = useLoans()
 
@@ -83,9 +85,11 @@ export default function DetallePagoScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1 bg-[#060709] items-center justify-center">
-        <ActivityIndicator size="small" color="#FF7854" />
-        <Text className="text-zinc-400 text-xs mt-3">Cargando comprobante...</Text>
+      <View
+        style={{ paddingTop: Math.max(insets.top, 20) }}
+        className="flex-1 bg-[#060709] px-6 max-w-md mx-auto w-full"
+      >
+        <SkeletonCardList count={2} />
       </View>
     )
   }
@@ -347,7 +351,10 @@ export default function DetallePagoScreen() {
         }}
       >
         <View className="flex-1 bg-black/80 justify-center px-6">
-          <View className="bg-[#12131A] border border-[#232433] rounded-3xl p-6 max-w-md w-full mx-auto">
+          <Animated.View
+            entering={reducedMotion ? undefined : ZoomIn.duration(220).springify()}
+            className="bg-[#12131A] border border-[#232433] rounded-3xl p-6 max-w-md w-full mx-auto"
+          >
             <View className="flex-row items-center justify-between mb-3">
               <View className="flex-row items-center gap-2">
                 <View className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 items-center justify-center">
@@ -415,7 +422,7 @@ export default function DetallePagoScreen() {
                 )}
               </Pressable>
             </View>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
     </View>

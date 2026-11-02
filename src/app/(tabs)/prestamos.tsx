@@ -21,17 +21,26 @@ import {
   ShieldCheck,
   CheckCircle2,
   Clock,
+  AlertTriangle,
+  CalendarClock,
+  ChevronRight,
 } from 'lucide-react-native'
 import { useLoans } from '../../modules/loans/hooks/useLoans'
 import { LoanCard } from '../../modules/loans/components/LoanCard'
 import { LoanStatus } from '../../modules/loans/types'
 import { ErrorMessage } from '../../shared/components/ErrorMessage'
+import { SkeletonCardList } from '../../shared/components/SkeletonBox'
+import { AnimatedPressable } from '../../shared/components/AnimatedPressable'
+import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated'
 
 export default function PrestamosScreen() {
   const router = useRouter()
+  const reducedMotion = useReducedMotion()
   const {
     loans,
     allLoans,
+    overdueObligations,
+    upcomingObligations,
     loading,
     refreshing,
     error,
@@ -63,7 +72,7 @@ export default function PrestamosScreen() {
             </Text>
           </View>
 
-          <Pressable
+          <AnimatedPressable
             onPress={() => router.push('/prestamos/crear')}
             className="flex-row items-center bg-[#D34524] active:bg-[#E54F2C] px-3.5 py-2 rounded-xl shadow-md shadow-[#D34524]/20"
           >
@@ -71,8 +80,67 @@ export default function PrestamosScreen() {
             <Text className="text-white text-xs font-bold ml-1">
               Crear
             </Text>
-          </Pressable>
+          </AnimatedPressable>
         </View>
+
+        {/* Accesos Directos a SCR-17 (Atrasados) y SCR-18 (Próximos Vencimientos) */}
+        <Animated.View
+          entering={reducedMotion ? undefined : FadeInDown.duration(240)}
+          className="flex-row gap-2.5 my-1.5"
+        >
+          <Pressable
+            onPress={() =>
+              router.push({ pathname: '/vencimientos/index' as any, params: { tab: 'atrasados' } })
+            }
+            className={`flex-1 flex-row items-center justify-between px-3.5 py-2.5 rounded-xl border ${
+              overdueObligations.length > 0
+                ? 'bg-[#FB3758]/10 border-[#FB3758]/40'
+                : 'bg-[#12131A] border-[#1E2030]'
+            }`}
+          >
+            <View className="flex-row items-center">
+              <AlertTriangle
+                size={15}
+                color={overdueObligations.length > 0 ? '#FB3758' : '#6B7280'}
+              />
+              <View className="ml-2">
+                <Text className="text-white text-xs font-bold">
+                  Atrasados
+                </Text>
+                <Text
+                  className={`text-[10px] font-mono ${
+                    overdueObligations.length > 0 ? 'text-[#FB3758]' : 'text-zinc-500'
+                  }`}
+                >
+                  {overdueObligations.length}{' '}
+                  {overdueObligations.length === 1 ? 'cuota' : 'cuotas'}
+                </Text>
+              </View>
+            </View>
+            <ChevronRight size={14} color="#6B7280" />
+          </Pressable>
+
+          <Pressable
+            onPress={() =>
+              router.push({ pathname: '/vencimientos/index' as any, params: { tab: 'proximos' } })
+            }
+            className="flex-1 flex-row items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#12131A] border border-[#1E2030]"
+          >
+            <View className="flex-row items-center">
+              <CalendarClock size={15} color="#FF7854" />
+              <View className="ml-2">
+                <Text className="text-white text-xs font-bold">
+                  Próximos
+                </Text>
+                <Text className="text-zinc-400 text-[10px] font-mono">
+                  {upcomingObligations.length}{' '}
+                  {upcomingObligations.length === 1 ? 'pendiente' : 'pendientes'}
+                </Text>
+              </View>
+            </View>
+            <ChevronRight size={14} color="#6B7280" />
+          </Pressable>
+        </Animated.View>
 
         {/* Barra de Búsqueda */}
         <View className="flex-row items-center px-3.5 h-11 bg-[#12131A] border border-[#1E2030] rounded-xl my-2.5">
@@ -136,11 +204,8 @@ export default function PrestamosScreen() {
 
       {/* Contenido / Listado de Préstamos */}
       {loading && !refreshing ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="small" color="#FF7854" />
-          <Text className="text-zinc-400 text-xs mt-3">
-            Cargando préstamos y saldos...
-          </Text>
+        <View className="flex-1 px-6 pt-2">
+          <SkeletonCardList count={3} />
         </View>
       ) : error ? (
         <View className="flex-1 px-6 justify-center items-center">
