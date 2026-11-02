@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Préstamos",
+    "slug": "prestamos",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "prestamos",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
