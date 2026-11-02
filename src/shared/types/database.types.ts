@@ -398,6 +398,13 @@ export type Database = {
         }
         Returns: Json
       }
+      reversar_pago_transaccional: {
+        Args: {
+          p_motivo?: string
+          p_pago_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       componente_pago: "mora" | "interes" | "capital"

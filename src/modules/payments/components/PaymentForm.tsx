@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef } from 'react'
 import {
   View,
   Text,
@@ -20,13 +20,16 @@ import {
   Banknote,
   Smartphone,
   ShieldCheck,
-  FileText,
+  Sparkles,
+  TrendingDown,
 } from 'lucide-react-native'
 import { CreatePaymentDTO, PaymentMethod } from '../types'
+import { paymentsService } from '../services/payments.service'
 import { LoanWithDetails } from '../../loans/types'
 import { formatCOP, parseCOP } from '../../../shared/utils/currency'
 import { getInitials } from '../../../shared/utils/initials'
 import { getSafeBottomInset } from '../../../shared/utils/responsive'
+import { generateUUID } from '../../../shared/utils/uuid'
 import { ErrorMessage } from '../../../shared/components/ErrorMessage'
 import { DatePickerModal } from '../../../shared/components/DatePickerModal'
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated'
@@ -49,10 +52,16 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
   const cuotas = loan.cuotas || []
   const totalCapitalPagado = cuotas.reduce((acc, c) => acc + (c.capital_pagado || 0), 0)
   const capitalPendiente = Math.max(0, loan.capital_original - totalCapitalPagado)
-  const totalInteresEsperado = cuotas.reduce((acc, c) => acc + (c.interes_esperado || 0), 0)
-  const totalInteresPagado = cuotas.reduce((acc, c) => acc + (c.interes_pagado || 0), 0)
-  const interesPendienteTotal = Math.max(0, totalInteresEsperado - totalInteresPagado)
-  const saldoExigibleTotal = capitalPendiente + interesPendienteTotal
+  const cuotasAbiertas = cuotas.filter((c) => !c.esta_liquidada)
+  const interesPendienteTotal = cuotasAbiertas.reduce(
+    (acc, c) => acc + Math.max(0, (c.interes_esperado || 0) - (c.interes_pagado || 0)),
+    0
+  )
+  const moraPendienteTotal = cuotasAbiertas.reduce(
+    (acc, c) => acc + Math.max(0, (c.mora_acumulada || 0) - (c.mora_pagada || 0)),
+    0
+  )
+  const saldoExigibleTotal = capitalPendiente + interesPendienteTotal + moraPendienteTotal
 
   // Cuota activa más próxima
   const proximaCuota = cuotas.find((c) => !c.esta_liquidada) || cuotas[0]
@@ -64,10 +73,13 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
     : 0
   const valorProximaCuota = interesProximaCuota + capitalProximaCuota
 
-  // Form states
+  // Estados del formulario
   const [montoText, setMontoText] = useState<string>('')
   const [metodoPago, setMetodoPago] = useState<PaymentMethod>('efectivo')
   const [notas, setNotas] = useState<string>('')
+
+  // Clave de idempotencia estable por intento (FL-11: reintento seguro ante corte de red)
+  const idempotencyKeyRef = useRef<string>(generateUUID())
 
   // Fecha de recepción
   const todayStr = useMemo(() => {
@@ -85,8 +97,23 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
 
   const montoNum = parseCOP(montoText)
 
+  // Previsualización de distribución en vivo (FL-04 paso 6)
+  const preview = useMemo(
+    () => paymentsService.previewAllocation(loan, montoNum),
+    [loan, montoNum]
+  )
+
+  const handleMontoChange = (val: string) => {
+    const clean = val.replace(/[^0-9]/g, '')
+    setMontoText(clean)
+    // Solo renovamos la clave de idempotencia cuando el usuario cambia la intención de monto
+    idempotencyKeyRef.current = generateUUID()
+    if (montoError) setMontoError(null)
+  }
+
   const handleQuickAmount = (val: number) => {
     setMontoText(val.toString())
+    idempotencyKeyRef.current = generateUUID()
     if (montoError) setMontoError(null)
   }
 
@@ -97,6 +124,11 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
 
     if (!montoNum || montoNum <= 0) {
       setMontoError('Ingresa un monto mayor a 0.')
+      valid = false
+    } else if (preview.excedeSaldoTotal) {
+      setMontoError(
+        `El monto supera el saldo total adeudado (${formatCOP(saldoExigibleTotal)} COP).`
+      )
       valid = false
     }
 
@@ -113,10 +145,10 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
         fecha_recepcion: fechaRecepcion,
         metodo_pago: metodoPago,
         notas: notas.trim() || null,
+        clave_idempotencia: idempotencyKeyRef.current,
       })
-      router.back()
     } catch (err: any) {
-      setFormError(err.message || 'Error al registrar el pago.')
+      setFormError(err.message || 'Error al registrar el pago. Puedes reintentar de forma segura.')
     }
   }
 
@@ -127,7 +159,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
         className="flex-1"
       >
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 28 }}
           keyboardShouldPersistTaps="handled"
           className="px-6 max-w-md mx-auto w-full"
         >
@@ -160,7 +192,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
             </Text>
           </Animated.View>
 
-          {formError && <ErrorMessage message={formError} onRetry={() => setFormError(null)} />}
+          {formError && <ErrorMessage message={formError} onRetry={handleSubmit} />}
 
           {/* Ficha Resumen del Préstamo */}
           <Animated.View
@@ -179,7 +211,12 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
                     {borrowerName}
                   </Text>
                   <Text className="text-zinc-400 text-xs mt-0.5 font-mono">
-                    #{shortCode} · {loan.tipo_amortizacion === 'solo_interes' ? 'Solo interés' : loan.tipo_amortizacion === 'pago_unico' ? 'Pago único' : 'Cuotas fijas'}
+                    #{shortCode} ·{' '}
+                    {loan.tipo_amortizacion === 'solo_interes'
+                      ? 'Solo interés'
+                      : loan.tipo_amortizacion === 'pago_unico'
+                      ? 'Pago único'
+                      : 'Cuotas fijas'}
                   </Text>
                 </View>
               </View>
@@ -205,7 +242,8 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
                   Capital: <Text className="text-white font-mono">{formatCOP(capitalPendiente)}</Text>
                 </Text>
                 <Text className="text-zinc-400 text-xs">
-                  Interés: <Text className="text-[#FF7854] font-mono">{formatCOP(interesPendienteTotal)}</Text>
+                  Interés:{' '}
+                  <Text className="text-[#FF7854] font-mono">{formatCOP(interesPendienteTotal)}</Text>
                 </Text>
               </View>
             </View>
@@ -227,18 +265,14 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
 
               <View
                 className={`flex-row items-center px-4 bg-[#0A0B10] rounded-2xl border ${
-                  montoError ? 'border-[#FB3758]' : 'border-[#232433]'
+                  montoError || preview.excedeSaldoTotal ? 'border-[#FB3758]' : 'border-[#232433]'
                 }`}
                 style={{ height: 52 }}
               >
                 <DollarSign size={18} color="#FF7854" />
                 <TextInput
                   value={montoText}
-                  onChangeText={(val) => {
-                    const clean = val.replace(/[^0-9]/g, '')
-                    setMontoText(clean)
-                    if (montoError) setMontoError(null)
-                  }}
+                  onChangeText={handleMontoChange}
                   placeholder="0"
                   placeholderTextColor="#4B5563"
                   keyboardType="numeric"
@@ -286,6 +320,94 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
                 )}
               </View>
             </View>
+
+            {/* Previsualización de la Distribución en Vivo (FL-04 Paso 6) */}
+            {montoNum > 0 && (
+              <View
+                className={`mb-5 p-4 rounded-2xl border ${
+                  preview.excedeSaldoTotal
+                    ? 'bg-rose-950/20 border-rose-500/40'
+                    : preview.liquidaCreditoCompleto
+                    ? 'bg-emerald-950/20 border-emerald-500/35'
+                    : 'bg-[#0A0B10] border-[#1E2030]'
+                }`}
+              >
+                <View className="flex-row items-center justify-between mb-2.5">
+                  <View className="flex-row items-center gap-1.5">
+                    <Sparkles
+                      size={14}
+                      color={preview.liquidaCreditoCompleto ? '#10B981' : '#FF7854'}
+                    />
+                    <Text className="text-zinc-300 text-xs font-bold uppercase tracking-wider">
+                      Previsualización de distribución
+                    </Text>
+                  </View>
+                  {preview.liquidaCreditoCompleto && (
+                    <View className="bg-emerald-500/20 px-2 py-0.5 rounded-full">
+                      <Text className="text-emerald-400 text-[10px] font-bold">
+                        Liquida 100%
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {preview.excedeSaldoTotal ? (
+                  <Text className="text-[#FB3758] text-xs leading-4">
+                    El monto ingresado supera la deuda total de {formatCOP(saldoExigibleTotal)} COP.
+                    Ajusta el valor para no generar saldos negativos.
+                  </Text>
+                ) : (
+                  <View className="space-y-1.5">
+                    {preview.abonoMora > 0 && (
+                      <View className="flex-row justify-between items-center py-1">
+                        <Text className="text-zinc-400 text-xs">1° Imputación a mora:</Text>
+                        <Text className="text-rose-400 text-xs font-mono font-bold">
+                          {formatCOP(preview.abonoMora)}
+                        </Text>
+                      </View>
+                    )}
+
+                    <View className="flex-row justify-between items-center py-1">
+                      <Text className="text-zinc-400 text-xs">Interés ordinario cubierto:</Text>
+                      <Text className="text-[#FF7854] text-xs font-mono font-bold">
+                        {formatCOP(preview.abonoInteres)}
+                      </Text>
+                    </View>
+
+                    <View className="flex-row justify-between items-center py-1">
+                      <Text className="text-zinc-400 text-xs">Abono directo a capital:</Text>
+                      <Text className="text-emerald-400 text-xs font-mono font-bold">
+                        {formatCOP(preview.abonoCapital)}
+                      </Text>
+                    </View>
+
+                    <View className="pt-2 mt-1 border-t border-[#1A1C29] flex-row justify-between items-center">
+                      <View className="flex-row items-center gap-1">
+                        <TrendingDown size={13} color="#9CA3AF" />
+                        <Text className="text-zinc-400 text-[11px]">Nuevo capital pendiente:</Text>
+                      </View>
+                      <Text className="text-white text-xs font-mono font-bold">
+                        {formatCOP(preview.nuevoCapitalPendiente)}
+                      </Text>
+                    </View>
+
+                    {!preview.liquidaCreditoCompleto &&
+                      (loan.tipo_amortizacion === 'solo_interes' ||
+                        loan.tipo_amortizacion === 'pago_unico') &&
+                      preview.nuevoInteresPendiente === 0 && (
+                        <View className="flex-row justify-between items-center pt-0.5">
+                          <Text className="text-zinc-500 text-[11px]">
+                            Próximo interés mensual ({loan.tasa_mensual}%):
+                          </Text>
+                          <Text className="text-zinc-300 text-[11px] font-mono font-semibold">
+                            {formatCOP(preview.proximoInteresMensualEstimado)} COP
+                          </Text>
+                        </View>
+                      )}
+                  </View>
+                )}
+              </View>
+            )}
 
             {/* Campo: Fecha de Recepción */}
             <View className="mb-5">
@@ -364,6 +486,14 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
               </View>
             </View>
           </Animated.View>
+
+          {/* Aviso de transaccionalidad e idempotencia */}
+          <View className="flex-row items-center justify-center gap-1.5 mb-2 px-2">
+            <ShieldCheck size={14} color="#6B7280" />
+            <Text className="text-zinc-500 text-[11px] text-center">
+              Operación protegida con clave de idempotencia contra cobros duplicados
+            </Text>
+          </View>
         </ScrollView>
 
         {/* Footer Ergonómico Pinned con Zona Segura Responsiva */}
@@ -379,10 +509,12 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
           <View className="max-w-md mx-auto w-full">
             <Pressable
               onPress={handleSubmit}
-              disabled={loading}
+              disabled={loading || preview.excedeSaldoTotal}
               style={{ height: 52 }}
               className={`w-full rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#D34524]/20 ${
-                loading ? 'bg-[#D34524]/60' : 'bg-[#D34524] active:bg-[#E54F2C]'
+                loading || preview.excedeSaldoTotal
+                  ? 'bg-[#D34524]/50'
+                  : 'bg-[#D34524] active:bg-[#E54F2C]'
               }`}
             >
               {loading ? (
@@ -411,4 +543,3 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
     </View>
   )
 }
-

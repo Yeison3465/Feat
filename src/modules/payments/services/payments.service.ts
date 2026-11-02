@@ -1,264 +1,221 @@
 import { supabase } from '../../../lib/supabase'
-import { CreatePaymentDTO, PaymentComponent, PaymentWithDetails } from '../types'
+import {
+  CreatePaymentDTO,
+  InstallmentPaymentItem,
+  LoanMovementItem,
+  PaymentAllocationPreview,
+  PaymentWithDetails,
+} from '../types'
+import { LoanWithDetails } from '../../loans/types'
 import { generateUUID } from '../../../shared/utils/uuid'
-import { loansService } from '../../loans/services/loans.service'
 
 export const paymentsService = {
   /**
-   * Registra un pago/recaudo en el préstamo, distribuye el saldo entre las cuotas
-   * pendientes (interés y capital), asienta el movimiento contable y evalúa
-   * si el crédito queda completamente liquidado.
+   * Calcula en memoria la previsualización exacta de cómo se distribuirá un monto de pago
+   * siguiendo la prelación aprobada (1° Mora -> 2° Interés -> 3° Capital) antes de confirmar (FL-04 paso 6).
+   */
+  previewAllocation(loan: LoanWithDetails, monto: number): PaymentAllocationPreview {
+    const cuotas = loan.cuotas || []
+    const totalCapitalPagado = cuotas.reduce((acc, c) => acc + (c.capital_pagado || 0), 0)
+    const capitalPendienteActual = Math.max(0, loan.capital_original - totalCapitalPagado)
+
+    const cuotasPendientes = cuotas.filter((c) => !c.esta_liquidada)
+    const moraPendienteActual = cuotasPendientes.reduce(
+      (acc, c) => acc + Math.max(0, (c.mora_acumulada || 0) - (c.mora_pagada || 0)),
+      0
+    )
+    const interesPendienteActual = cuotasPendientes.reduce(
+      (acc, c) => acc + Math.max(0, (c.interes_esperado || 0) - (c.interes_pagado || 0)),
+      0
+    )
+
+    const saldoExigibleTotal =
+      capitalPendienteActual + interesPendienteActual + moraPendienteActual
+
+    const montoLimpio = Math.max(0, Math.round(monto || 0))
+    let restante = montoLimpio
+    let abonoMora = 0
+    let abonoInteres = 0
+    let abonoCapital = 0
+
+    for (const cuota of cuotasPendientes) {
+      if (restante <= 0) break
+
+      const moraCuota = Math.max(0, (cuota.mora_acumulada || 0) - (cuota.mora_pagada || 0))
+      if (moraCuota > 0 && restante > 0) {
+        const pagoMora = Math.min(restante, moraCuota)
+        abonoMora += pagoMora
+        restante -= pagoMora
+      }
+
+      const intCuota = Math.max(0, (cuota.interes_esperado || 0) - (cuota.interes_pagado || 0))
+      if (intCuota > 0 && restante > 0) {
+        const pagoInt = Math.min(restante, intCuota)
+        abonoInteres += pagoInt
+        restante -= pagoInt
+      }
+
+      const capCuota = Math.max(0, (cuota.capital_esperado || 0) - (cuota.capital_pagado || 0))
+      if (capCuota > 0 && restante > 0) {
+        const pagoCap = Math.min(restante, capCuota)
+        abonoCapital += pagoCap
+        restante -= pagoCap
+      }
+    }
+
+    if (restante > 0) {
+      abonoCapital += restante
+      restante = 0
+    }
+
+    const nuevoCapitalPendiente = Math.max(0, capitalPendienteActual - abonoCapital)
+    const nuevoInteresPendiente = Math.max(0, interesPendienteActual - abonoInteres)
+    const exento = loan.persona?.exento_interes_ordinario ?? false
+    const tasa = exento ? 0 : loan.tasa_mensual
+    const proximoInteresMensualEstimado = Math.round(nuevoCapitalPendiente * (tasa / 100))
+
+    return {
+      montoTotal: montoLimpio,
+      abonoMora,
+      abonoInteres,
+      abonoCapital,
+      nuevoCapitalPendiente,
+      nuevoInteresPendiente,
+      proximoInteresMensualEstimado,
+      liquidaCreditoCompleto:
+        montoLimpio > 0 &&
+        nuevoCapitalPendiente === 0 &&
+        nuevoInteresPendiente === 0 &&
+        moraPendienteActual - abonoMora <= 0,
+      excedeSaldoTotal: saldoExigibleTotal > 0 && montoLimpio > saldoExigibleTotal,
+      saldoExigibleTotal,
+    }
+  },
+
+  /**
+   * Registra un pago o abono de forma 100% transaccional en PostgreSQL mediante RPC (FL-04, FL-05, FL-06, FL-11).
+   * Garantiza idempotencia, bloqueo contra concurrencia, distribución contable y rollover automático.
    */
   async createPayment(dto: CreatePaymentDTO): Promise<PaymentWithDetails> {
     const { data: authData, error: authError } = await supabase.auth.getUser()
     if (authError || !authData.user) {
       throw new Error('Debes iniciar sesión para registrar un pago.')
     }
-    const userId = authData.user.id
 
     if (!dto.monto || dto.monto <= 0) {
       throw new Error('El monto a pagar debe ser mayor a 0.')
     }
 
-    const idempotencyKey = generateUUID()
+    const idempotencyKey = dto.clave_idempotencia || generateUUID()
 
-    // 1. Intentar registrar vía RPC transaccional en Supabase si está disponible
-    try {
-      const { data: rpcData, error: rpcError } = await (supabase.rpc as any)(
-        'registrar_pago_transaccional',
-        {
-          p_prestamo_id: dto.prestamo_id,
-          p_monto: dto.monto,
-          p_clave_idempotencia: idempotencyKey,
-          p_fecha_recepcion: dto.fecha_recepcion,
-          p_metodo_pago: dto.metodo_pago,
-          p_notas: dto.notas || undefined,
-        }
-      )
-
-      if (!rpcError && rpcData) {
-        // RPC exitoso
-        return (typeof rpcData === 'string' ? JSON.parse(rpcData) : rpcData) as PaymentWithDetails
+    const { data: rpcData, error: rpcError } = await supabase.rpc(
+      'registrar_pago_transaccional',
+      {
+        p_prestamo_id: dto.prestamo_id,
+        p_monto: Math.round(dto.monto),
+        p_clave_idempotencia: idempotencyKey,
+        p_fecha_recepcion: dto.fecha_recepcion,
+        p_metodo_pago: dto.metodo_pago,
+        p_notas: dto.notas?.trim() || undefined,
       }
-    } catch {
-      // Si la función RPC no existe en la BD remota, continuar con el flujo directo
-    }
-
-    // 2. Flujo directo en base de datos con verificación de propiedad
-    const { data: prestamo, error: prestamoError } = await supabase
-      .from('prestamos')
-      .select('id, capital_original, estado, tasa_mensual, tipo_amortizacion')
-      .eq('id', dto.prestamo_id)
-      .eq('propietario_id', userId)
-      .single()
-
-    if (prestamoError || !prestamo) {
-      throw new Error('El préstamo seleccionado no existe o no tienes acceso.')
-    }
-
-    // Insertar el registro principal en `pagos`
-    const { data: nuevoPago, error: pagoError } = await supabase
-      .from('pagos')
-      .insert({
-        prestamo_id: dto.prestamo_id,
-        propietario_id: userId,
-        monto: dto.monto,
-        fecha_recepcion: dto.fecha_recepcion,
-        metodo_pago: dto.metodo_pago,
-        notas: dto.notas?.trim() || null,
-        clave_idempotencia: idempotencyKey,
-        es_reverso: false,
-      })
-      .select()
-      .single()
-
-    if (pagoError || !nuevoPago) {
-      throw new Error(`Error al registrar el pago: ${pagoError?.message}`)
-    }
-
-    // Obtener las cuotas del préstamo ordenadas cronológicamente
-    const { data: cuotas, error: cuotasError } = await supabase
-      .from('cuotas')
-      .select('*')
-      .eq('prestamo_id', dto.prestamo_id)
-      .eq('propietario_id', userId)
-      .order('numero_cuota', { ascending: true })
-
-    if (cuotasError) {
-      throw new Error(`Error al consultar cuotas: ${cuotasError.message}`)
-    }
-
-    let montoRestante = dto.monto
-    const distribucionesParaInsertar: Array<{
-      pago_id: string
-      cuota_id: string | null
-      propietario_id: string
-      componente: PaymentComponent
-      monto: number
-    }> = []
-
-    // Distribuir el pago cuota por cuota
-    if (cuotas && cuotas.length > 0) {
-      for (const cuota of cuotas) {
-        if (montoRestante <= 0) break
-
-        const interesEsperado = cuota.interes_esperado || 0
-        const interesPagado = cuota.interes_pagado || 0
-        const interesPendiente = Math.max(0, interesEsperado - interesPagado)
-
-        const capitalEsperado = cuota.capital_esperado || 0
-        const capitalPagado = cuota.capital_pagado || 0
-        const capitalPendiente = Math.max(0, capitalEsperado - capitalPagado)
-
-        let nuevoInteresPagado = interesPagado
-        let nuevoCapitalPagado = capitalPagado
-
-        // A. Imputar a Interés Ordinario de la cuota primero
-        if (interesPendiente > 0 && montoRestante > 0) {
-          const abonoInteres = Math.min(montoRestante, interesPendiente)
-          nuevoInteresPagado += abonoInteres
-          montoRestante -= abonoInteres
-
-          distribucionesParaInsertar.push({
-            pago_id: nuevoPago.id,
-            cuota_id: cuota.id,
-            propietario_id: userId,
-            componente: 'interes',
-            monto: abonoInteres,
-          })
-        }
-
-        // B. Imputar a Capital de la cuota
-        if (capitalPendiente > 0 && montoRestante > 0) {
-          const abonoCapital = Math.min(montoRestante, capitalPendiente)
-          nuevoCapitalPagado += abonoCapital
-          montoRestante -= abonoCapital
-
-          distribucionesParaInsertar.push({
-            pago_id: nuevoPago.id,
-            cuota_id: cuota.id,
-            propietario_id: userId,
-            componente: 'capital',
-            monto: abonoCapital,
-          })
-        }
-
-        // Evaluar si la cuota queda liquidada
-        let finalCapitalEsperado = capitalEsperado
-        let estaLiquidada =
-          nuevoInteresPagado >= interesEsperado && nuevoCapitalPagado >= capitalEsperado
-
-        // En modalidad 'pago_unico', si el prestatario cubre el interés devengado del periodo
-        // pero amortiza solo parte (o nada) del capital, se cierra este ciclo con lo abonado
-        // para dar paso a la siguiente cuota mensual calculada sobre el saldo pendiente
-        if (
-          prestamo.tipo_amortizacion === 'pago_unico' &&
-          nuevoInteresPagado >= interesEsperado &&
-          nuevoCapitalPagado < capitalEsperado
-        ) {
-          finalCapitalEsperado = nuevoCapitalPagado
-          estaLiquidada = true
-        }
-
-        // Actualizar cuota si cambió
-        if (
-          nuevoInteresPagado !== interesPagado ||
-          nuevoCapitalPagado !== capitalPagado ||
-          finalCapitalEsperado !== capitalEsperado ||
-          estaLiquidada !== cuota.esta_liquidada
-        ) {
-          await supabase
-            .from('cuotas')
-            .update({
-              interes_pagado: nuevoInteresPagado,
-              capital_pagado: nuevoCapitalPagado,
-              capital_esperado: finalCapitalEsperado,
-              esta_liquidada: estaLiquidada,
-            })
-            .eq('id', cuota.id)
-            .eq('propietario_id', userId)
-        }
-      }
-
-      // Si aún resta monto (abono libre a capital en préstamos de "solo interés" o excedente)
-      if (montoRestante > 0) {
-        const ultimaCuota = cuotas[cuotas.length - 1]
-        distribucionesParaInsertar.push({
-          pago_id: nuevoPago.id,
-          cuota_id: ultimaCuota?.id || null,
-          propietario_id: userId,
-          componente: 'capital',
-          monto: montoRestante,
-        })
-
-        if (ultimaCuota) {
-          const capitalActual = ultimaCuota.capital_pagado || 0
-          await supabase
-            .from('cuotas')
-            .update({
-              capital_pagado: capitalActual + montoRestante,
-            })
-            .eq('id', ultimaCuota.id)
-            .eq('propietario_id', userId)
-        }
-        montoRestante = 0
-      }
-    } else {
-      // Sin cuotas registradas, distribuir directo a capital
-      distribucionesParaInsertar.push({
-        pago_id: nuevoPago.id,
-        cuota_id: null,
-        propietario_id: userId,
-        componente: 'capital',
-        monto: dto.monto,
-      })
-    }
-
-    // Insertar registros en `distribucion_pagos`
-    if (distribucionesParaInsertar.length > 0) {
-      await supabase.from('distribucion_pagos').insert(distribucionesParaInsertar)
-    }
-
-    // Asentar movimiento en `movimientos_prestamo` para auditoría
-    await supabase.from('movimientos_prestamo').insert({
-      prestamo_id: dto.prestamo_id,
-      propietario_id: userId,
-      tipo_movimiento: 'pago',
-      monto: dto.monto,
-      fecha_efectiva: dto.fecha_recepcion,
-      pago_origen_id: nuevoPago.id,
-      notas: dto.notas?.trim() || `Pago recibido por ${dto.metodo_pago}`,
-    })
-
-    // Evaluar si la deuda total de capital ha sido saldada para marcar el préstamo como completado
-    const { data: cuotasActualizadas } = await supabase
-      .from('cuotas')
-      .select('capital_pagado')
-      .eq('prestamo_id', dto.prestamo_id)
-      .eq('propietario_id', userId)
-
-    const totalCapitalRecuperado = (cuotasActualizadas || []).reduce(
-      (sum, c) => sum + (c.capital_pagado || 0),
-      0
     )
 
-    if (totalCapitalRecuperado >= prestamo.capital_original && prestamo.estado !== 'completado') {
-      await supabase
-        .from('prestamos')
-        .update({ estado: 'completado' })
-        .eq('id', dto.prestamo_id)
-        .eq('propietario_id', userId)
-    } else {
-      // Si aún resta capital por recuperar, asegurar automáticamente la siguiente cuota mensual (rollover)
-      // calculada exclusivamente sobre el saldo pendiente de capital
-      await loansService.ensureNextInstallment(dto.prestamo_id, userId)
+    if (rpcError) {
+      throw new Error(rpcError.message || 'Error al procesar el pago en el servidor.')
     }
 
-    return nuevoPago as PaymentWithDetails
+    const parsed = (typeof rpcData === 'string' ? JSON.parse(rpcData) : rpcData) as Record<
+      string,
+      any
+    >
+
+    const paymentId = parsed?.id || parsed?.pago_id
+    if (!paymentId) {
+      throw new Error('No se recibió confirmación válida del comprobante de pago.')
+    }
+
+    return {
+      id: paymentId,
+      prestamo_id: parsed.prestamo_id || dto.prestamo_id,
+      propietario_id: parsed.propietario_id || authData.user.id,
+      monto: Number(parsed.monto ?? dto.monto),
+      fecha_recepcion: parsed.fecha_recepcion || dto.fecha_recepcion,
+      metodo_pago: parsed.metodo_pago || dto.metodo_pago,
+      notas: parsed.notas ?? dto.notas ?? null,
+      es_reverso: Boolean(parsed.es_reverso),
+      creado_en: parsed.creado_en || new Date().toISOString(),
+    }
   },
 
   /**
-   * Obtiene los pagos realizados sobre un préstamo específico
+   * Ejecuta un reverso contable transaccional de un pago confirmado (FL-10 / T-010).
+   * Conserva el pago original, inserta el movimiento compensatorio y restaura los saldos de cuotas y préstamo.
+   */
+  async reversePayment(pagoId: string, motivo: string): Promise<{ reverso_id: string }> {
+    const { data: authData, error: authError } = await supabase.auth.getUser()
+    if (authError || !authData.user) {
+      throw new Error('Debes iniciar sesión para reversar una operación.')
+    }
+
+    const cleanReason = motivo.trim()
+    if (!cleanReason) {
+      throw new Error('Debes indicar el motivo de la corrección o reverso.')
+    }
+
+    const { data, error } = await supabase.rpc('reversar_pago_transaccional', {
+      p_pago_id: pagoId,
+      p_motivo: cleanReason,
+    })
+
+    if (error) {
+      throw new Error(error.message || 'No fue posible reversar el pago.')
+    }
+
+    const parsed = (typeof data === 'string' ? JSON.parse(data) : data) as Record<string, any>
+    return {
+      reverso_id: parsed?.reverso_id || pagoId,
+    }
+  },
+
+  /**
+   * Obtiene el detalle completo de un pago específico para el comprobante SCR-14
+   */
+  async getPaymentById(pagoId: string): Promise<any> {
+    const { data: authData, error: authError } = await supabase.auth.getUser()
+    if (authError || !authData.user) {
+      throw new Error('Debes iniciar sesión para consultar el comprobante.')
+    }
+
+    const { data: pago, error } = await supabase
+      .from('pagos')
+      .select(
+        '*, distribucion_pagos(*), prestamos(id, capital_original, tasa_mensual, tipo_amortizacion, estado, personas(id, nombre))'
+      )
+      .eq('id', pagoId)
+      .eq('propietario_id', authData.user.id)
+      .single()
+
+    if (error || !pago) {
+      throw new Error(error?.message || 'Comprobante de pago no encontrado.')
+    }
+
+    // Verificar si este pago fue reversado por otro registro posterior
+    const { data: reversoRow } = await supabase
+      .from('pagos')
+      .select('id, creado_en, notas')
+      .eq('pago_reversado_id', pagoId)
+      .eq('propietario_id', authData.user.id)
+      .maybeSingle()
+
+    return {
+      ...pago,
+      esta_reversado: Boolean(reversoRow),
+      reverso_info: reversoRow || null,
+    }
+  },
+
+  /**
+   * Obtiene todos los pagos realizados sobre un préstamo (SCR-15 Historial de pagos)
    */
   async getPaymentsByLoan(prestamoId: string): Promise<PaymentWithDetails[]> {
     const { data: authData, error: authError } = await supabase.auth.getUser()
@@ -271,12 +228,69 @@ export const paymentsService = {
       .select('*, distribucion_pagos(*)')
       .eq('prestamo_id', prestamoId)
       .eq('propietario_id', authData.user.id)
-      .order('fecha_recepcion', { ascending: false })
+      .order('creado_en', { ascending: false })
 
     if (error) {
       throw new Error(`Error al consultar pagos: ${error.message}`)
     }
 
-    return (data || []) as PaymentWithDetails[]
+    const rows = (data || []) as PaymentWithDetails[]
+    const reversedIds = new Set(
+      rows.filter((r) => r.es_reverso && r.pago_reversado_id).map((r) => r.pago_reversado_id!)
+    )
+
+    return rows.map((row) => ({
+      ...row,
+      distribuciones: row.distribucion_pagos || [],
+      esta_reversado: reversedIds.has(row.id),
+    }))
+  },
+
+  /**
+   * Obtiene el libro mayor de movimientos financieros de un préstamo (SCR-16 Movimientos financieros)
+   */
+  async getMovementsByLoan(prestamoId: string): Promise<LoanMovementItem[]> {
+    const { data: authData, error: authError } = await supabase.auth.getUser()
+    if (authError || !authData.user) {
+      throw new Error('Debes iniciar sesión para consultar movimientos financieros.')
+    }
+
+    const { data, error } = await supabase
+      .from('movimientos_prestamo')
+      .select('*')
+      .eq('prestamo_id', prestamoId)
+      .eq('propietario_id', authData.user.id)
+      .order('creado_en', { ascending: false })
+
+    if (error) {
+      throw new Error(`Error al consultar movimientos: ${error.message}`)
+    }
+
+    return (data || []) as unknown as LoanMovementItem[]
+  },
+
+  /**
+   * Obtiene las imputaciones de pagos asociadas a una cuota específica (SCR-12 Detalle de cuota)
+   */
+  async getAllocationsByInstallment(cuotaId: string): Promise<InstallmentPaymentItem[]> {
+    const { data: authData, error: authError } = await supabase.auth.getUser()
+    if (authError || !authData.user) {
+      throw new Error('Debes iniciar sesión para consultar el detalle de la cuota.')
+    }
+
+    const { data, error } = await supabase
+      .from('distribucion_pagos')
+      .select(
+        'id, pago_id, cuota_id, componente, monto, creado_en, pago:pagos(id, monto, fecha_recepcion, metodo_pago, notas, es_reverso, pago_reversado_id)'
+      )
+      .eq('cuota_id', cuotaId)
+      .eq('propietario_id', authData.user.id)
+      .order('creado_en', { ascending: false })
+
+    if (error) {
+      throw new Error(`Error al consultar abonos de la cuota: ${error.message}`)
+    }
+
+    return (data || []) as unknown as InstallmentPaymentItem[]
   },
 }

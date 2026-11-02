@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useCallback } from 'react'
 import { View, ActivityIndicator } from 'react-native'
-import { useLocalSearchParams } from 'expo-router'
+import { useLocalSearchParams, useFocusEffect } from 'expo-router'
 import { useLoans } from '../../modules/loans/hooks/useLoans'
 import { loansService } from '../../modules/loans/services/loans.service'
+import { paymentsService } from '../../modules/payments/services/payments.service'
 import { LoanWithDetails } from '../../modules/loans/types'
+import { LoanMovementItem, PaymentWithDetails } from '../../modules/payments/types'
 import { LoanDetailView } from '../../modules/loans/components/LoanDetailView'
 import { ErrorMessage } from '../../shared/components/ErrorMessage'
 
@@ -13,32 +15,43 @@ export default function DetallePrestamoScreen() {
 
   const cachedLoan = id ? getLoanById(id) : undefined
   const [loan, setLoan] = useState<LoanWithDetails | null>(cachedLoan ?? null)
+  const [payments, setPayments] = useState<PaymentWithDetails[]>([])
+  const [movements, setMovements] = useState<LoanMovementItem[]>([])
   const [loading, setLoading] = useState(!cachedLoan)
+  const [historyLoading, setHistoryLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadLoan = useCallback(async () => {
+  const loadAll = useCallback(async () => {
     if (!id) return
     try {
-      if (!cachedLoan) setLoading(true)
+      if (!loan) setLoading(true)
+      setHistoryLoading(true)
       setError(null)
-      const data = await loansService.getLoanById(id)
-      setLoan(data)
+
+      const [freshLoan, loanPayments, loanMovements] = await Promise.all([
+        loansService.getLoanById(id),
+        paymentsService.getPaymentsByLoan(id),
+        paymentsService.getMovementsByLoan(id),
+      ])
+
+      setLoan(freshLoan)
+      setPayments(loanPayments)
+      setMovements(loanMovements)
     } catch (err: any) {
-      if (!cachedLoan) {
+      if (!loan) {
         setError(err.message || 'Error al cargar los detalles del préstamo.')
       }
     } finally {
       setLoading(false)
+      setHistoryLoading(false)
     }
-  }, [id, cachedLoan])
+  }, [id])
 
-  useEffect(() => {
-    if (!cachedLoan) {
-      loadLoan()
-    } else {
-      setLoan(cachedLoan)
-    }
-  }, [cachedLoan, loadLoan])
+  useFocusEffect(
+    useCallback(() => {
+      loadAll()
+    }, [loadAll])
+  )
 
   if (loading) {
     return (
@@ -53,11 +66,18 @@ export default function DetallePrestamoScreen() {
       <View className="flex-1 bg-[#060709] px-6 justify-center items-center">
         <ErrorMessage
           message={error || 'No se encontró la información del préstamo solicitado.'}
-          onRetry={loadLoan}
+          onRetry={loadAll}
         />
       </View>
     )
   }
 
-  return <LoanDetailView loan={loan} />
+  return (
+    <LoanDetailView
+      loan={loan}
+      payments={payments}
+      movements={movements}
+      historyLoading={historyLoading}
+    />
+  )
 }

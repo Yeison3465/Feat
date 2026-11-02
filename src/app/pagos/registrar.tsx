@@ -21,8 +21,10 @@ export default function RegistrarPagoScreen() {
   const handleSubmit = async (dto: CreatePaymentDTO) => {
     setSubmitting(true)
     try {
-      await paymentsService.createPayment(dto)
+      const createdPayment = await paymentsService.createPayment(dto)
       await reload()
+      // Redirigir al comprobante SCR-14 (Confirmación de pago)
+      router.replace(`/pagos/${createdPayment.id}`)
     } finally {
       setSubmitting(false)
     }
