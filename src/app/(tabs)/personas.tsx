@@ -132,7 +132,16 @@ export default function PersonasScreen() {
                   ? `No se encontraron personas que coincidan con "${searchQuery}".`
                   : 'Aún no has registrado prestatarios en tu cartera privada.'}
               </Text>
-              {searchQuery.length === 0 && (
+              {searchQuery.length > 0 ? (
+                <Pressable
+                  onPress={() => setSearchQuery('')}
+                  className="bg-[#1A1B26] border border-[#252738] active:bg-[#252738] px-4 py-2.5 rounded-xl"
+                >
+                  <Text className="text-[#FF7854] text-xs font-bold">
+                    Limpiar búsqueda
+                  </Text>
+                </Pressable>
+              ) : (
                 <Pressable
                   onPress={() => router.push('/personas/crear')}
                   className="bg-[#D34524] active:bg-[#E54F2C] px-5 py-2.5 rounded-xl shadow-lg shadow-[#D34524]/20"

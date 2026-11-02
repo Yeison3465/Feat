@@ -15,7 +15,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { User, Phone, MapPin, FileText, ArrowLeft, ShieldCheck, Check } from 'lucide-react-native'
 import { CreatePersonDTO, Person } from '../types'
 import { getInitials } from '../../../shared/utils/initials'
+import { getSafeBottomInset } from '../../../shared/utils/responsive'
 import { ErrorMessage } from '../../../shared/components/ErrorMessage'
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated'
 
 interface PersonFormProps {
   readonly initialData?: Person
@@ -77,7 +79,10 @@ export const PersonForm: React.FC<PersonFormProps> = ({ initialData, onSubmit, l
           className="px-6 max-w-md mx-auto w-full"
         >
           {/* Cabecera con Botón Volver */}
-          <View className="flex-row items-center justify-between mt-2 mb-6">
+          <Animated.View
+            entering={FadeInDown.duration(260)}
+            className="flex-row items-center justify-between mt-2 mb-6"
+          >
             <Pressable
               onPress={() => router.back()}
               className="flex-row items-center py-2 pr-4"
@@ -92,10 +97,10 @@ export const PersonForm: React.FC<PersonFormProps> = ({ initialData, onSubmit, l
             <Text className="text-zinc-500 text-xs font-mono uppercase tracking-widest">
               {isEditing ? 'Modo Edición' : 'Nuevo Registro'}
             </Text>
-          </View>
+          </Animated.View>
 
           {/* Título y Avatar con Iniciales automáticas */}
-          <View className="items-center mb-6">
+          <Animated.View entering={FadeInDown.delay(50).duration(280)} className="items-center mb-6">
             <View className="w-16 h-16 rounded-2xl bg-[#191316] border border-[#2F191D] items-center justify-center mb-3 shadow-lg shadow-black/50">
               <Text className="text-[#FF7854] text-xl font-bold font-mono">
                 {initials}
@@ -107,12 +112,15 @@ export const PersonForm: React.FC<PersonFormProps> = ({ initialData, onSubmit, l
             <Text className="text-zinc-500 text-xs text-center mt-1">
               Sin foto ni archivos adjuntos · Privacidad total
             </Text>
-          </View>
+          </Animated.View>
 
           {formError && <ErrorMessage message={formError} onRetry={() => setFormError(null)} />}
 
           {/* Formulario en Tarjeta */}
-          <View className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-5 mb-4 shadow-2xl shadow-black">
+          <Animated.View
+            entering={FadeInDown.delay(100).duration(300).springify()}
+            className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-5 mb-4 shadow-2xl shadow-black"
+          >
             {/* Campo: Nombre Completo (Obligatorio) */}
             <View className="mb-4">
               <View className="flex-row items-center justify-between mb-2">
@@ -228,13 +236,14 @@ export const PersonForm: React.FC<PersonFormProps> = ({ initialData, onSubmit, l
                 Si se activa, los préstamos otorgados a esta persona se crearán sin generar intereses ordinarios (tasa 0%).
               </Text>
             </View>
-          </View>
+          </Animated.View>
         </ScrollView>
 
         {/* Footer de Acción Fijo Responsivo para Cualquier Dispositivo */}
-        <View
+        <Animated.View
+          entering={FadeInUp.delay(200).duration(280)}
           style={{
-            paddingBottom: Math.max(insets.bottom, 16),
+            paddingBottom: getSafeBottomInset(insets.bottom, 20),
             paddingTop: 12,
             paddingHorizontal: 24,
           }}
@@ -261,7 +270,7 @@ export const PersonForm: React.FC<PersonFormProps> = ({ initialData, onSubmit, l
               )}
             </Pressable>
           </View>
-        </View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </View>
   )

@@ -21,4 +21,5 @@ export interface AuthContextValue extends AuthState {
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>
   signOut: () => Promise<void>
   clearError: () => void
+  recordActivity: () => void
 }

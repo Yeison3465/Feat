@@ -1,9 +1,15 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react'
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react'
+import { AppState, AppStateStatus } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Session, User } from '@supabase/supabase-js'
 import { AuthContextValue, SignInCredentials } from '../types'
 import { authService } from '../services/auth.service'
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
+
+// Tiempo límite de inactividad: 30 minutos (1.800.000 ms)
+const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000
+const LAST_ACTIVE_KEY = '@prestamos_last_activity_time'
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null)
@@ -44,6 +50,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [])
 
+  const recordActivity = useCallback(() => {
+    AsyncStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString()).catch(() => {})
+  }, [])
+
+  const signOut = async () => {
+    try {
+      setLoading(true)
+      await AsyncStorage.removeItem(LAST_ACTIVE_KEY).catch(() => {})
+      await authService.signOut()
+      setSession(null)
+      setUser(null)
+      setError(null)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const checkInactivity = useCallback(async (): Promise<boolean> => {
+    try {
+      const raw = await AsyncStorage.getItem(LAST_ACTIVE_KEY)
+      if (raw) {
+        const lastActive = parseInt(raw, 10)
+        if (!isNaN(lastActive) && Date.now() - lastActive >= INACTIVITY_TIMEOUT_MS) {
+          await signOut()
+          return true
+        }
+      }
+    } catch {}
+    return false
+  }, [])
+
+  // Monitoreo de inactividad de 30 minutos mientras exista sesión
+  useEffect(() => {
+    if (!session) return
+
+    recordActivity()
+
+    // 1. Detección inmediata al volver de segundo plano
+    const subscription = AppState.addEventListener('change', async (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        const timedOut = await checkInactivity()
+        if (!timedOut) {
+          recordActivity()
+        }
+      } else {
+        recordActivity()
+      }
+    })
+
+    // 2. Temporizador periódico en primer plano (cada 30 segundos)
+    const interval = setInterval(async () => {
+      await checkInactivity()
+    }, 30000)
+
+    return () => {
+      subscription.remove()
+      clearInterval(interval)
+    }
+  }, [session, checkInactivity, recordActivity])
+
   const signIn = async (credentials: SignInCredentials) => {
     try {
       setLoading(true)
@@ -51,6 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await authService.signInWithPassword(credentials)
       setSession(data.session)
       setUser(data.user)
+      recordActivity()
       return { success: true }
     } catch (err: any) {
       const msg = err.message || 'Error al iniciar sesión'
@@ -76,20 +145,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  const signOut = async () => {
-    try {
-      setLoading(true)
-      await authService.signOut()
-      setSession(null)
-      setUser(null)
-      setError(null)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const clearError = () => setError(null)
 
   const value = useMemo<AuthContextValue>(
@@ -102,8 +157,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       resetPassword,
       signOut,
       clearError,
+      recordActivity,
     }),
-    [session, user, loading, error]
+    [session, user, loading, error, recordActivity]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

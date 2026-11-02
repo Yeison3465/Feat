@@ -1,16 +1,12 @@
 import React from 'react'
-import { Platform } from 'react-native'
 import { Tabs } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Home, Users, CreditCard, Settings } from 'lucide-react-native'
+import { getTabBarMetrics } from '../../shared/utils/responsive'
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets()
-
-  // En dispositivos con barra de navegación nativa (Android) o indicador Home (iOS),
-  // garantizamos que las etiquetas e iconos queden por encima de la barra del sistema.
-  const bottomInset = insets.bottom > 0 ? insets.bottom : Platform.OS === 'android' ? 10 : 8
-  const tabHeight = 56 + bottomInset
+  const { tabHeight, paddingBottom } = getTabBarMetrics(insets.bottom)
 
   return (
     <Tabs
@@ -21,7 +17,7 @@ export default function TabsLayout() {
           borderTopColor: '#1F202E',
           borderTopWidth: 1,
           height: tabHeight,
-          paddingBottom: bottomInset,
+          paddingBottom: paddingBottom,
           paddingTop: 8,
         },
         tabBarActiveTintColor: '#FF7854',

@@ -1,15 +1,16 @@
 import React, { useEffect } from 'react'
-import { Platform } from 'react-native'
+import { Platform, View } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
-import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context'
 import { AuthProvider, useAuth } from '../modules/auth/hooks/useAuth'
 import { PeopleProvider } from '../modules/people/context/PeopleContext'
+import { LoansProvider } from '../modules/loans/context/LoansContext'
 import { SplashScreen } from '../shared/components/SplashScreen'
 import '../../global.css'
 
 function NavigationGuard() {
-  const { session, loading } = useAuth()
+  const { session, loading, recordActivity } = useAuth()
   const segments = useSegments()
   const router = useRouter()
 
@@ -42,40 +43,72 @@ function NavigationGuard() {
   }
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        animation: 'slide_from_right',
-      }}
-    >
-      <Stack.Screen name="index" />
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen
-        name="personas/crear"
-        options={{
+    <View className="flex-1 bg-[#060709]" onTouchStart={recordActivity}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
           animation: 'slide_from_right',
-          presentation: 'card',
         }}
-      />
-      <Stack.Screen
-        name="personas/[id]"
-        options={{
-          animation: 'slide_from_right',
-          presentation: 'card',
-        }}
-      />
-    </Stack>
+      >
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="personas/crear"
+          options={{
+            animation: 'slide_from_right',
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="personas/[id]"
+          options={{
+            animation: 'slide_from_right',
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="prestamos/crear"
+          options={{
+            animation: 'slide_from_right',
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="prestamos/[id]"
+          options={{
+            animation: 'slide_from_right',
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="pagos/registrar"
+          options={{
+            animation: 'slide_from_right',
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="pagos/[id]"
+          options={{
+            animation: 'slide_from_right',
+            presentation: 'card',
+          }}
+        />
+      </Stack>
+    </View>
   )
 }
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <StatusBar style="light" />
       <AuthProvider>
         <PeopleProvider>
-          <NavigationGuard />
+          <LoansProvider>
+            <NavigationGuard />
+          </LoansProvider>
         </PeopleProvider>
       </AuthProvider>
     </SafeAreaProvider>

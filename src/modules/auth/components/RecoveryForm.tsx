@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Mail, CheckCircle, ArrowLeft, ArrowRight, Shield } from 'lucide-react-native'
 import { useAuth } from '../hooks/useAuth'
+import { getSafeBottomInset } from '../../../shared/utils/responsive'
 import { ErrorMessage } from '../../../shared/components/ErrorMessage'
 
 export const RecoveryForm: React.FC = () => {
@@ -77,7 +78,7 @@ export const RecoveryForm: React.FC = () => {
           flexGrow: 1,
           justifyContent: 'space-between',
           paddingTop: Math.max(insets.top, 16),
-          paddingBottom: Math.max(insets.bottom, 16),
+          paddingBottom: getSafeBottomInset(insets.bottom, 20),
         }}
         keyboardShouldPersistTaps="handled"
         className="px-6 max-w-md mx-auto w-full"
