@@ -293,4 +293,25 @@ export const paymentsService = {
 
     return (data || []) as unknown as InstallmentPaymentItem[]
   },
+
+  /**
+   * Obtiene todos los pagos confirmados del usuario para métricas globales del Dashboard (FL-08)
+   */
+  async getAllConfirmedPayments(): Promise<any[]> {
+    const { data: authData, error: authError } = await supabase.auth.getUser()
+    if (authError || !authData.user) return []
+
+    const { data, error } = await supabase
+      .from('pagos')
+      .select('id, prestamo_id, monto, fecha_recepcion, metodo_pago, es_reverso, pago_reversado_id, distribucion_pagos(*)')
+      .eq('propietario_id', authData.user.id)
+      .order('fecha_recepcion', { ascending: true })
+
+    if (error || !data) return []
+
+    const reversedIds = new Set(
+      data.filter((p) => p.es_reverso && p.pago_reversado_id).map((p) => p.pago_reversado_id)
+    )
+    return data.filter((p) => !p.es_reverso && !reversedIds.has(p.id))
+  },
 }

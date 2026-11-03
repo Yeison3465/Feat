@@ -1,7 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import { loansService } from '../services/loans.service'
+import { paymentsService } from '../../payments/services/payments.service'
 import {
+  ActiveBorrowerSummary,
+  ChartPoint,
   CreateLoanDTO,
+  DashboardPeriod,
   LoanConditionsSnapshot,
   LoanStatus,
   LoanSummaryMetrics,
@@ -15,17 +19,21 @@ interface LoansContextType {
   allLoans: LoanWithDetails[]
   overdueObligations: ObligationItem[]
   upcomingObligations: ObligationItem[]
+  activeBorrowers: ActiveBorrowerSummary[]
   loading: boolean
   refreshing: boolean
   error: string | null
   searchQuery: string
   estadoFilter: LoanStatus | 'todos'
+  dashboardPeriod: DashboardPeriod
+  chartData: ChartPoint[]
+  metrics: LoanSummaryMetrics
   setSearchQuery: (query: string) => void
   setEstadoFilter: (estado: LoanStatus | 'todos') => void
+  setDashboardPeriod: (period: DashboardPeriod) => void
   reload: () => Promise<void>
   createLoan: (dto: CreateLoanDTO) => Promise<LoanWithDetails>
   getLoanById: (id: string) => LoanWithDetails | undefined
-  metrics: LoanSummaryMetrics
 }
 
 const LoansContext = createContext<LoansContextType | undefined>(undefined)
@@ -33,15 +41,18 @@ const LoansContext = createContext<LoansContextType | undefined>(undefined)
 export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { session } = useAuth()
   const [allLoans, setAllLoans] = useState<LoanWithDetails[]>([])
+  const [allPayments, setAllPayments] = useState<any[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [refreshing, setRefreshing] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [estadoFilter, setEstadoFilter] = useState<LoanStatus | 'todos'>('todos')
+  const [dashboardPeriod, setDashboardPeriod] = useState<DashboardPeriod>('mes_actual')
 
   const loadLoans = useCallback(async (isRefresh = false) => {
     if (!session) {
       setAllLoans([])
+      setAllPayments([])
       setLoading(false)
       return
     }
@@ -53,8 +64,12 @@ export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setLoading(true)
       }
       setError(null)
-      const data = await loansService.getLoans()
-      setAllLoans(data)
+      const [loansData, paymentsData] = await Promise.all([
+        loansService.getLoans(),
+        paymentsService.getAllConfirmedPayments().catch(() => []),
+      ])
+      setAllLoans(loansData)
+      setAllPayments(paymentsData)
     } catch (err: any) {
       setError(err.message || 'Error al cargar los préstamos de la cartera.')
     } finally {
@@ -68,6 +83,7 @@ export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       loadLoans()
     } else {
       setAllLoans([])
+      setAllPayments([])
       setLoading(false)
     }
   }, [session, loadLoans])
@@ -192,15 +208,22 @@ export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { overdueObligations: overdue, upcomingObligations: upcoming }
   }, [allLoans])
 
-  // Métricas financieras calculadas en memoria con precisión para solo_interes, pago_unico y cuotas_fijas
+  // Métricas financieras calculadas con estricto apego a las 9 definiciones del PDF
   const metrics = useMemo<LoanSummaryMetrics>(() => {
     const today = new Date().toISOString().split('T')[0]
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth()
+
     let totalCapitalPrestado = 0
     let totalCapitalPendiente = 0
     let totalInteresEsperado = 0
     let totalInteresCobrado = 0
     let totalMoraCobrada = 0
-    let cuotasVencidasCount = 0
+    let totalInteresPendiente = 0
+    let saldoMoraVencido = 0
+
+    const personasPendientesSet = new Set<string>()
 
     for (const loan of allLoans) {
       if (loan.estado === 'cancelado') continue
@@ -215,16 +238,108 @@ export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           totalMoraCobrada += cuota.mora_pagada || 0
           loanCapitalPagado += cuota.capital_pagado || 0
 
-          if (!cuota.esta_liquidada && cuota.fecha_vencimiento < today) {
-            cuotasVencidasCount++
+          if (!cuota.esta_liquidada) {
+            const intPend = Math.max(0, (cuota.interes_esperado || 0) - (cuota.interes_pagado || 0))
+            totalInteresPendiente += intPend
+
+            if (cuota.fecha_vencimiento < today) {
+              const moraPend = Math.max(0, (cuota.mora_acumulada || 0) - (cuota.mora_pagada || 0))
+              saldoMoraVencido += moraPend
+            }
           }
         }
       }
 
       if (loan.estado !== 'completado') {
-        totalCapitalPendiente += Math.max(0, loan.capital_original - loanCapitalPagado)
+        const capPendiente = Math.max(0, loan.capital_original - loanCapitalPagado)
+        totalCapitalPendiente += capPendiente
+        if (capPendiente > 0 || (loan.cuotas && loan.cuotas.some((c) => !c.esta_liquidada))) {
+          personasPendientesSet.add(loan.persona_id)
+        }
       }
     }
+
+    // Regla de oro contable (pág. 12): Ganancia real = Intereses recibidos + Mora recibida (el capital recuperado NO es ganancia)
+    const gananciasTotalesCobradas = totalInteresCobrado + totalMoraCobrada
+    const carteraTotalPendiente = totalCapitalPendiente + totalInteresPendiente + saldoMoraVencido
+
+    // Personas atrasadas desduplicadas por persona_id (pág. 12)
+    const personasAtrasadasSet = new Set<string>(overdueObligations.map((o) => o.loan.persona_id))
+    const personasAtrasadasCount = personasAtrasadasSet.size
+    const cuotasVencidasCount = overdueObligations.length
+    const personasPendientesCount = personasPendientesSet.size
+    const proximosVencimientosCount = upcomingObligations.length
+
+    // Recaudo del periodo filtrado (mes actual, últimos 30 días, o histórico)
+    let recaudoPeriodo = 0
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+    for (const p of allPayments) {
+      const pDate = new Date(p.fecha_recepcion || p.creado_en)
+      const pMonto = Number(p.monto) || 0
+
+      if (dashboardPeriod === 'historico') {
+        recaudoPeriodo += pMonto
+      } else if (dashboardPeriod === 'ultimos_30d') {
+        if (pDate >= thirtyDaysAgo && pDate <= now) {
+          recaudoPeriodo += pMonto
+        }
+      } else {
+        // mes_actual
+        if (pDate.getFullYear() === currentYear && pDate.getMonth() === currentMonth) {
+          recaudoPeriodo += pMonto
+        }
+      }
+    }
+
+    // Métricas Detalladas / Avanzadas
+    const totalCapitalPagado = Math.max(0, totalCapitalPrestado - totalCapitalPendiente)
+    const tasaRecuperacionPct = totalCapitalPrestado > 0 ? (totalCapitalPagado / totalCapitalPrestado) * 100 : 0
+    const rendimientoRoiPct = totalCapitalPrestado > 0 ? (gananciasTotalesCobradas / totalCapitalPrestado) * 100 : 0
+    const indiceMorosidadPct = carteraTotalPendiente > 0 ? (saldoMoraVencido / carteraTotalPendiente) * 100 : 0
+
+    const carteraPorModalidad = {
+      soloInteres: 0,
+      cuotasFijas: 0,
+      pagoUnico: 0,
+    }
+
+    let activeLoansCount = 0
+    let totalCuotasVencidasHistoricas = 0
+    let totalCuotasPagadasHistoricas = 0
+
+    for (const loan of allLoans) {
+      if (loan.estado === 'cancelado') continue
+      if (loan.estado !== 'completado') {
+        activeLoansCount++
+        const capPag = (loan.cuotas ?? []).reduce((sum, c) => sum + (c.capital_pagado || 0), 0)
+        const capPend = Math.max(0, loan.capital_original - capPag)
+        if (loan.tipo_amortizacion === 'solo_interes') {
+          carteraPorModalidad.soloInteres += capPend
+        } else if (loan.tipo_amortizacion === 'cuotas_fijas') {
+          carteraPorModalidad.cuotasFijas += capPend
+        } else if (loan.tipo_amortizacion === 'pago_unico') {
+          carteraPorModalidad.pagoUnico += capPend
+        }
+      }
+
+      if (loan.cuotas) {
+        for (const c of loan.cuotas) {
+          if (c.fecha_vencimiento <= today) {
+            totalCuotasVencidasHistoricas++
+            if (c.esta_liquidada) {
+              totalCuotasPagadasHistoricas++
+            }
+          }
+        }
+      }
+    }
+
+    const ticketPromedio = activeLoansCount > 0 ? totalCapitalPendiente / activeLoansCount : 0
+    const tasaEfectividadCobroPct =
+      totalCuotasVencidasHistoricas > 0
+        ? (totalCuotasPagadasHistoricas / totalCuotasVencidasHistoricas) * 100
+        : 100
 
     return {
       totalCapitalPrestado,
@@ -232,9 +347,135 @@ export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       totalInteresEsperado,
       totalInteresCobrado,
       totalMoraCobrada,
+      gananciasTotalesCobradas,
+      totalInteresPendiente,
+      carteraTotalPendiente,
+      personasAtrasadasCount,
       cuotasVencidasCount,
+      saldoMoraVencido,
+      personasPendientesCount,
+      recaudoPeriodo,
+      proximosVencimientosCount,
+      totalCapitalPagado,
+      tasaRecuperacionPct,
+      rendimientoRoiPct,
+      indiceMorosidadPct,
+      ticketPromedio,
+      carteraPorModalidad,
+      tasaEfectividadCobroPct,
     }
+  }, [allLoans, allPayments, overdueObligations, upcomingObligations, dashboardPeriod])
+
+  // Prestatarios activos consolidados para acceso rápido en Inicio
+  const activeBorrowers = useMemo<ActiveBorrowerSummary[]>(() => {
+    const today = new Date().toISOString().split('T')[0]
+    const map = new Map<string, ActiveBorrowerSummary>()
+
+    for (const loan of allLoans) {
+      if (loan.estado === 'completado' || loan.estado === 'cancelado') continue
+
+      const capPagado = (loan.cuotas ?? []).reduce((sum, c) => sum + (c.capital_pagado || 0), 0)
+      const capPend = Math.max(0, loan.capital_original - capPagado)
+      const intPend = (loan.cuotas ?? []).reduce(
+        (sum, c) => sum + Math.max(0, (c.interes_esperado || 0) - (c.interes_pagado || 0)),
+        0
+      )
+      const moraPend = (loan.cuotas ?? []).reduce(
+        (sum, c) => sum + Math.max(0, (c.mora_acumulada || 0) - (c.mora_pagada || 0)),
+        0
+      )
+      const totalLoanDebt = capPend + intPend + moraPend
+
+      const hasOverdue = (loan.cuotas ?? []).some(
+        (c) => !c.esta_liquidada && c.fecha_vencimiento < today
+      )
+
+      const personaId = loan.persona_id
+      const nombre =
+        loan.persona?.nombre || (loan.resumen_condiciones as any)?.persona_nombre || 'Prestatario'
+      const telefono = loan.persona?.telefono || null
+
+      if (!map.has(personaId)) {
+        map.set(personaId, {
+          personaId,
+          nombre,
+          telefono,
+          totalSaldoPendiente: totalLoanDebt,
+          activeLoansCount: 1,
+          hasOverdue,
+        })
+      } else {
+        const existing = map.get(personaId)!
+        existing.totalSaldoPendiente += totalLoanDebt
+        existing.activeLoansCount += 1
+        if (hasOverdue) existing.hasOverdue = true
+      }
+    }
+
+    return Array.from(map.values()).sort((a, b) => b.totalSaldoPendiente - a.totalSaldoPendiente)
   }, [allLoans])
+
+  // Puntos del gráfico de área (AreaChartCard Figma: Sem 1 a 4 o meses)
+  const chartData = useMemo<ChartPoint[]>(() => {
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth()
+
+    if (dashboardPeriod === 'historico') {
+      // Últimos 6 meses
+      const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+      const points: ChartPoint[] = []
+
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(currentYear, currentMonth - i, 1)
+        const y = d.getFullYear()
+        const m = d.getMonth()
+        const label = monthNames[m]
+
+        const sumMonth = allPayments
+          .filter((p) => {
+            const pDate = new Date(p.fecha_recepcion || p.creado_en)
+            return pDate.getFullYear() === y && pDate.getMonth() === m
+          })
+          .reduce((sum, p) => sum + (Number(p.monto) || 0), 0)
+
+        points.push({ label, amount: sumMonth })
+      }
+      return points
+    }
+
+    // Mes actual o últimos 30 días: 4 semanas (Figma: Sem 1 - 4)
+    const points: ChartPoint[] = [
+      { label: 'Sem 1', amount: 0 },
+      { label: 'Sem 2', amount: 0 },
+      { label: 'Sem 3', amount: 0 },
+      { label: 'Sem 4', amount: 0 },
+    ]
+
+    for (const p of allPayments) {
+      const pDate = new Date(p.fecha_recepcion || p.creado_en)
+      const pMonto = Number(p.monto) || 0
+
+      if (dashboardPeriod === 'mes_actual') {
+        if (pDate.getFullYear() === currentYear && pDate.getMonth() === currentMonth) {
+          const day = pDate.getDate()
+          const weekIndex = Math.min(3, Math.floor((day - 1) / 7))
+          points[weekIndex].amount += pMonto
+        }
+      } else {
+        // ultimos_30d
+        const diffDays = Math.floor((now.getTime() - pDate.getTime()) / (1000 * 60 * 60 * 24))
+        if (diffDays >= 0 && diffDays <= 30) {
+          const bucketIndex = Math.min(3, Math.floor(diffDays / 7.5))
+          // Orden cronológico: 3 semanas atrás (Sem 1) hasta esta semana (Sem 4)
+          const chronIndex = 3 - bucketIndex
+          points[chronIndex].amount += pMonto
+        }
+      }
+    }
+
+    return points
+  }, [allPayments, dashboardPeriod])
 
   const value = useMemo(
     () => ({
@@ -242,31 +483,38 @@ export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       allLoans,
       overdueObligations,
       upcomingObligations,
+      activeBorrowers,
       loading,
       refreshing,
       error,
       searchQuery,
       estadoFilter,
+      dashboardPeriod,
+      chartData,
+      metrics,
       setSearchQuery,
       setEstadoFilter,
+      setDashboardPeriod,
       reload: () => loadLoans(true),
       createLoan,
       getLoanById,
-      metrics,
     }),
     [
       filteredLoans,
       allLoans,
       overdueObligations,
       upcomingObligations,
+      activeBorrowers,
       loading,
       refreshing,
       error,
       searchQuery,
       estadoFilter,
+      dashboardPeriod,
+      chartData,
+      metrics,
       loadLoans,
       getLoanById,
-      metrics,
     ]
   )
 

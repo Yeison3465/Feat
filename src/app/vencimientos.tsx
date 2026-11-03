@@ -41,9 +41,16 @@ export default function VencimientosScreen() {
     reload,
   } = useLoans()
 
-  const [activeTab, setActiveTab] = useState<'atrasados' | 'proximos'>(
-    params.tab === 'proximos' ? 'proximos' : 'atrasados'
-  )
+  const initialTab =
+    params.tab === 'proximos'
+      ? 'proximos'
+      : params.tab === 'atrasados'
+      ? 'atrasados'
+      : overdueObligations.length > 0
+      ? 'atrasados'
+      : 'proximos'
+
+  const [activeTab, setActiveTab] = useState<'atrasados' | 'proximos'>(initialTab)
   const [horizon, setHorizon] = useState<DueHorizonFilter>('30d')
 
   const horizonOptions: { id: DueHorizonFilter; label: string }[] = [
@@ -70,6 +77,18 @@ export default function VencimientosScreen() {
     () => displayedItems.reduce((sum, item) => sum + item.saldoExigible, 0),
     [displayedItems]
   )
+
+  const projectedThisWeek = useMemo(() => {
+    return upcomingObligations
+      .filter((o) => o.daysDiff >= 0 && o.daysDiff <= 7)
+      .reduce((sum, o) => sum + o.saldoExigible, 0)
+  }, [upcomingObligations])
+
+  const projectedThisMonth = useMemo(() => {
+    return upcomingObligations
+      .filter((o) => o.daysDiff >= 0 && o.daysDiff <= 30)
+      .reduce((sum, o) => sum + o.saldoExigible, 0)
+  }, [upcomingObligations])
 
   const handleCall = (phone?: string | null) => {
     if (!phone) return
@@ -256,22 +275,40 @@ export default function VencimientosScreen() {
           <View className="w-10" />
         </View>
 
+        {/* Proyección de Cobranza (Semana y Mes) */}
+        <View className="bg-[#12131A] border border-[#1E2030] rounded-2xl p-3 mb-3 flex-row items-center justify-between shadow-lg shadow-black">
+          <View className="flex-1 border-r border-[#1C1E2B] pr-3">
+            <Text className="text-zinc-500 text-[10px] font-medium uppercase tracking-wider">
+              Cobros en 7 días
+            </Text>
+            <Text className="text-emerald-400 text-sm font-bold font-mono mt-0.5" numberOfLines={1}>
+              {formatCOP(projectedThisWeek)}
+            </Text>
+          </View>
+          <View className="flex-1 pl-3">
+            <Text className="text-zinc-500 text-[10px] font-medium uppercase tracking-wider">
+              Cobros en 30 días
+            </Text>
+            <Text className="text-[#FF7854] text-sm font-bold font-mono mt-0.5" numberOfLines={1}>
+              {formatCOP(projectedThisMonth)}
+            </Text>
+          </View>
+        </View>
+
         {/* Segmented Control: SCR-17 Atrasados vs SCR-18 Próximos */}
         <View className="flex-row bg-[#11121A] border border-[#1E2030] rounded-2xl p-1 mb-3">
           <Pressable
             onPress={() => setActiveTab('atrasados')}
-            className={`flex-1 flex-row items-center justify-center py-2.5 rounded-xl ${
-              activeTab === 'atrasados' ? 'bg-[#FB3758]' : 'bg-transparent'
-            }`}
+            style={{ backgroundColor: activeTab === 'atrasados' ? '#FB3758' : 'transparent' }}
+            className="flex-1 flex-row items-center justify-center py-2.5 rounded-xl"
           >
             <AlertTriangle
               size={14}
               color={activeTab === 'atrasados' ? '#FFFFFF' : '#FB3758'}
             />
             <Text
-              className={`text-xs font-bold ml-1.5 ${
-                activeTab === 'atrasados' ? 'text-white' : 'text-zinc-400'
-              }`}
+              style={{ color: activeTab === 'atrasados' ? '#FFFFFF' : '#A1A1AA' }}
+              className="text-xs font-bold ml-1.5"
             >
               Atrasados ({overdueObligations.length})
             </Text>
@@ -279,18 +316,16 @@ export default function VencimientosScreen() {
 
           <Pressable
             onPress={() => setActiveTab('proximos')}
-            className={`flex-1 flex-row items-center justify-center py-2.5 rounded-xl ${
-              activeTab === 'proximos' ? 'bg-[#D34524]' : 'bg-transparent'
-            }`}
+            style={{ backgroundColor: activeTab === 'proximos' ? '#D34524' : 'transparent' }}
+            className="flex-1 flex-row items-center justify-center py-2.5 rounded-xl"
           >
             <CalendarClock
               size={14}
               color={activeTab === 'proximos' ? '#FFFFFF' : '#FF7854'}
             />
             <Text
-              className={`text-xs font-bold ml-1.5 ${
-                activeTab === 'proximos' ? 'text-white' : 'text-zinc-400'
-              }`}
+              style={{ color: activeTab === 'proximos' ? '#FFFFFF' : '#A1A1AA' }}
+              className="text-xs font-bold ml-1.5"
             >
               Próximos ({upcomingObligations.length})
             </Text>
@@ -311,16 +346,15 @@ export default function VencimientosScreen() {
                   <Pressable
                     key={opt.id}
                     onPress={() => setHorizon(opt.id)}
-                    className={`px-3.5 py-1.5 rounded-full border ${
-                      isSelected
-                        ? 'bg-[#D34524]/20 border-[#FF7854]'
-                        : 'bg-[#12131A] border-[#1E2030]'
-                    }`}
+                    style={{
+                      backgroundColor: isSelected ? 'rgba(211, 69, 36, 0.2)' : '#12131A',
+                      borderColor: isSelected ? '#FF7854' : '#1E2030',
+                    }}
+                    className="px-3.5 py-1.5 rounded-full border"
                   >
                     <Text
-                      className={`text-xs font-semibold ${
-                        isSelected ? 'text-[#FF7854]' : 'text-zinc-400'
-                      }`}
+                      style={{ color: isSelected ? '#FF7854' : '#A1A1AA' }}
+                      className="text-xs font-semibold"
                     >
                       {opt.label}
                     </Text>
@@ -348,11 +382,12 @@ export default function VencimientosScreen() {
 
       {/* Lista de Obligaciones */}
       {loading && !refreshing ? (
-        <View className="flex-1 px-6 pt-3">
+        <View key="vencimientos-loading" className="flex-1 px-6 pt-3">
           <SkeletonCardList count={3} />
         </View>
       ) : (
         <FlatList
+          key="vencimientos-list"
           data={displayedItems}
           keyExtractor={(item) => item.installment.id}
           renderItem={renderObligationCard}
@@ -373,7 +408,7 @@ export default function VencimientosScreen() {
           ListEmptyComponent={
             <View className="flex-1 items-center justify-center py-16 px-4">
               {activeTab === 'atrasados' ? (
-                <>
+                <View key="empty-atrasados" className="items-center">
                   <View className="w-16 h-16 rounded-2xl bg-[#064E3B]/20 border border-[#065F46]/40 items-center justify-center mb-4">
                     <ShieldCheck size={30} color="#10B981" />
                   </View>
@@ -383,9 +418,9 @@ export default function VencimientosScreen() {
                   <Text className="text-zinc-400 text-xs text-center max-w-[260px] leading-4">
                     No tienes ningún prestatario con cuotas vencidas pendientes de pago hoy.
                   </Text>
-                </>
+                </View>
               ) : (
-                <>
+                <View key="empty-proximos" className="items-center">
                   <View className="w-16 h-16 rounded-2xl bg-[#12131A] border border-[#1E2030] items-center justify-center mb-4">
                     <Clock size={28} color="#FF7854" />
                   </View>
@@ -405,7 +440,7 @@ export default function VencimientosScreen() {
                       </Text>
                     </Pressable>
                   )}
-                </>
+                </View>
               )}
             </View>
           }

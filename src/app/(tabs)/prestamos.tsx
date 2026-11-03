@@ -168,16 +168,15 @@ export default function PrestamosScreen() {
                 <Pressable
                   key={opt.id}
                   onPress={() => setEstadoFilter(opt.id)}
-                  className={`px-3.5 py-1.5 rounded-full border ${
-                    isActive
-                      ? 'bg-[#D34524] border-[#D34524]'
-                      : 'bg-[#12131A] border-[#1E2030] active:border-zinc-700'
-                  }`}
+                  style={{
+                    backgroundColor: isActive ? '#D34524' : '#12131A',
+                    borderColor: isActive ? '#D34524' : '#1E2030',
+                  }}
+                  className="px-3.5 py-1.5 rounded-full border"
                 >
                   <Text
-                    className={`text-xs font-semibold ${
-                      isActive ? 'text-white' : 'text-zinc-400'
-                    }`}
+                    style={{ color: isActive ? '#FFFFFF' : '#A1A1AA' }}
+                    className="text-xs font-semibold"
                   >
                     {opt.label}
                   </Text>
@@ -238,7 +237,7 @@ export default function PrestamosScreen() {
             <View className="flex-1 items-center justify-center py-16 px-4">
               {/* Caso 1: Búsqueda activa sin coincidencias */}
               {searchQuery.trim().length > 0 ? (
-                <>
+                <View key="empty-search" className="items-center">
                   <View className="w-16 h-16 rounded-2xl bg-[#12131A] border border-[#1E2030] items-center justify-center mb-4">
                     <Search size={28} color="#9CA3AF" />
                   </View>
@@ -256,11 +255,11 @@ export default function PrestamosScreen() {
                       Limpiar búsqueda
                     </Text>
                   </Pressable>
-                </>
+                </View>
               ) : estadoFilter === 'en_mora' ? (
                 /* Caso 2: Pestaña En mora limpia (Excelente salud de cartera) */
-                <>
-                  <View className="w-16 h-16 rounded-2xl bg-[#064E3B]/20 border border-[#065F46]/40 items-center justify-center mb-4 shadow-lg shadow-emerald-950/30">
+                <View key="empty-mora" className="items-center">
+                  <View className="w-16 h-16 rounded-2xl bg-[#064E3B]/20 border border-[#065F46]/40 items-center justify-center mb-4">
                     <ShieldCheck size={28} color="#10B981" />
                   </View>
                   <Text className="text-white text-base font-bold mb-1 text-center">
@@ -269,10 +268,10 @@ export default function PrestamosScreen() {
                   <Text className="text-zinc-400 text-xs text-center max-w-[270px] leading-relaxed">
                     ¡Excelente! Toda tu cartera se encuentra al día. No tienes obligaciones en mora actualmente.
                   </Text>
-                </>
+                </View>
               ) : estadoFilter === 'completado' ? (
                 /* Caso 3: Pestaña Completados sin préstamos liquidados */
-                <>
+                <View key="empty-completado" className="items-center">
                   <View className="w-16 h-16 rounded-2xl bg-[#12131A] border border-[#1E2030] items-center justify-center mb-4">
                     <CheckCircle2 size={28} color="#10B981" />
                   </View>
@@ -282,10 +281,10 @@ export default function PrestamosScreen() {
                   <Text className="text-zinc-400 text-xs text-center max-w-[270px] leading-relaxed">
                     Aún no tienes préstamos totalmente liquidados y saldados en tu historial.
                   </Text>
-                </>
+                </View>
               ) : estadoFilter === 'activo' && allLoans.length > 0 ? (
                 /* Caso 4: Pestaña Activos vacía pero hay historial */
-                <>
+                <View key="empty-activo" className="items-center">
                   <View className="w-16 h-16 rounded-2xl bg-[#12131A] border border-[#1E2030] items-center justify-center mb-4">
                     <Clock size={28} color="#F59E0B" />
                   </View>
@@ -297,16 +296,16 @@ export default function PrestamosScreen() {
                   </Text>
                   <Pressable
                     onPress={() => router.push('/prestamos/crear')}
-                    className="bg-[#D34524] active:bg-[#E54F2C] px-5 py-2.5 rounded-xl shadow-lg shadow-[#D34524]/20"
+                    className="bg-[#D34524] active:bg-[#E54F2C] px-5 py-2.5 rounded-xl"
                   >
                     <Text className="text-white text-xs font-bold">
                       + Crear nuevo préstamo
                     </Text>
                   </Pressable>
-                </>
+                </View>
               ) : (
                 /* Caso 5: Cartera total completamente vacía */
-                <>
+                <View key="empty-all" className="items-center">
                   <View className="w-16 h-16 rounded-2xl bg-[#12131A] border border-[#1E2030] items-center justify-center mb-4">
                     <CreditCard size={28} color="#FF7854" />
                   </View>
@@ -318,13 +317,13 @@ export default function PrestamosScreen() {
                   </Text>
                   <Pressable
                     onPress={() => router.push('/prestamos/crear')}
-                    className="bg-[#D34524] active:bg-[#E54F2C] px-5 py-2.5 rounded-xl shadow-lg shadow-[#D34524]/20"
+                    className="bg-[#D34524] active:bg-[#E54F2C] px-5 py-2.5 rounded-xl"
                   >
                     <Text className="text-white text-xs font-bold">
                       + Crear primer préstamo
                     </Text>
                   </Pressable>
-                </>
+                </View>
               )}
             </View>
           }

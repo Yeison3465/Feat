@@ -52,13 +52,59 @@ export interface LoanFilter {
   estado?: LoanStatus | 'todos'
 }
 
+export type DashboardPeriod = 'mes_actual' | 'ultimos_30d' | 'historico'
+
+export interface ChartPoint {
+  label: string
+  amount: number
+  date?: string
+}
+
 export interface LoanSummaryMetrics {
+  // 1. Capital prestado histórico (sin restar amortizaciones)
   totalCapitalPrestado: number
+  // 2. Capital pendiente (desembolsado menos recuperado)
   totalCapitalPendiente: number
+  // 3. Ganancias cobradas (intereses cobrados + mora cobrada)
   totalInteresEsperado: number
   totalInteresCobrado: number
   totalMoraCobrada: number
+  gananciasTotalesCobradas: number
+  // 4. Intereses pendientes
+  totalInteresPendiente: number
+  // 5. Cartera total pendiente (capital + intereses + mora)
+  carteraTotalPendiente: number
+  // 6. Personas atrasadas (desduplicadas por persona_id)
+  personasAtrasadasCount: number
   cuotasVencidasCount: number
+  saldoMoraVencido: number
+  // 7. Personas activas / pendientes
+  personasPendientesCount: number
+  // 8. Recaudo del periodo seleccionado
+  recaudoPeriodo: number
+  // 9. Próximos vencimientos
+  proximosVencimientosCount: number
+  // --- Métricas Específicas / Detalladas ---
+  totalCapitalPagado: number
+  tasaRecuperacionPct: number
+  rendimientoRoiPct: number
+  indiceMorosidadPct: number
+  ticketPromedio: number
+  carteraPorModalidad: {
+    soloInteres: number
+    cuotasFijas: number
+    pagoUnico: number
+  }
+  tasaEfectividadCobroPct: number
+}
+
+export interface ActiveBorrowerSummary {
+  personaId: string
+  nombre: string
+  telefono?: string | null
+  totalSaldoPendiente: number
+  activeLoansCount: number
+  hasOverdue: boolean
 }
 
 export type DueHorizonFilter = 'hoy' | '7d' | '15d' | '30d' | 'todos'

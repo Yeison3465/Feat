@@ -48,17 +48,17 @@ export const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
   }
 
   return (
-    <Pressable
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      disabled={disabled}
-      className={containerClassName}
-      {...rest}
-    >
-      <Animated.View style={[style, animatedStyle]} className={className}>
+    <Animated.View style={animatedStyle} className={containerClassName}>
+      <Pressable
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        disabled={disabled}
+        style={style}
+        className={className}
+        {...rest}
+      >
         {children}
-      </Animated.View>
-    </Pressable>
+      </Pressable>
+    </Animated.View>
   )
 }
-
