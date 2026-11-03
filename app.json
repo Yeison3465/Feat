@@ -5,14 +5,19 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "prestamos",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#060709",
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "com.miles12.feat",
       "softwareKeyboardLayoutMode": "pan",
-      "package": "com.miles12.feat"
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#060709"
+      }
     },
     "web": {
       "bundler": "metro",
@@ -20,7 +25,16 @@
     },
     "plugins": [
       "expo-router",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#060709"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
