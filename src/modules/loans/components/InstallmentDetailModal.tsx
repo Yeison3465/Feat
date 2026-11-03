@@ -70,7 +70,7 @@ export const InstallmentDetailModal: React.FC<InstallmentDetailModalProps> = ({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View className="flex-1 bg-black/80 justify-end">
         <Animated.View
-          entering={reducedMotion ? undefined : SlideInDown.duration(260).springify()}
+          entering={reducedMotion ? undefined : SlideInDown.duration(380).springify().damping(18).stiffness(150)}
           className="bg-[#12131A] border-t border-[#232433] rounded-t-3xl p-6 max-h-[85%] max-w-md w-full mx-auto"
         >
           {/* Cabecera del Modal (SCR-12) */}
@@ -188,7 +188,7 @@ export const InstallmentDetailModal: React.FC<InstallmentDetailModalProps> = ({
                   entering={
                     reducedMotion
                       ? undefined
-                      : FadeInDown.delay(Math.min(idx * 45, 220)).duration(220)
+                      : FadeInDown.delay(Math.min(idx * 60, 300)).duration(340).springify()
                   }
                 >
                   <Pressable

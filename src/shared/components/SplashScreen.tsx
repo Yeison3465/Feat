@@ -25,7 +25,10 @@ export const SplashScreen: React.FC = () => {
   }))
 
   return (
-    <View className="flex-1 bg-[#09090D] items-center justify-between py-16 px-6">
+    <View
+      style={{ flex: 1, backgroundColor: '#060709' }}
+      className="flex-1 bg-[#060709] items-center justify-between py-16 px-6"
+    >
       <View />
 
       <View className="items-center">

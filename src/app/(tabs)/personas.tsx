@@ -30,7 +30,7 @@ export default function PersonasScreen() {
   } = usePeople()
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-[#060709]">
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#060709' }} edges={['top']} className="flex-1 bg-[#060709]">
       <View className="px-6 pt-4 pb-2">
         {/* Header Superior con Botón Crear */}
         <View className="flex-row items-center justify-between mb-2">

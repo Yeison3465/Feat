@@ -17,9 +17,11 @@ function NavigationGuard() {
   const inAuthGroup = segments[0] === '(auth)'
 
   useEffect(() => {
-    // Asegurar tema oscuro por defecto en Web
+    // Asegurar tema oscuro por defecto en Web de forma inmediata
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
       document.documentElement.classList.add('dark')
+      document.documentElement.style.backgroundColor = '#060709'
+      document.body.style.backgroundColor = '#060709'
     }
   }, [])
 
@@ -33,31 +35,30 @@ function NavigationGuard() {
     }
   }, [session, loading, inAuthGroup, router])
 
-  if (loading) {
-    return <SplashScreen />
-  }
-
-  // Prevenir que se rendericen rutas privadas si no hay sesión activa
-  if (!session && !inAuthGroup) {
-    return <SplashScreen />
-  }
+  const showSplashOverlay = loading || (!session && !inAuthGroup) || (session && inAuthGroup)
 
   return (
-    <View className="flex-1 bg-[#060709]" onTouchStart={recordActivity}>
+    <View
+      style={{ flex: 1, backgroundColor: '#060709' }}
+      className="flex-1 bg-[#060709]"
+      onTouchStart={recordActivity}
+    >
       <Stack
         screenOptions={{
           headerShown: false,
-          animation: 'slide_from_right',
+          animation: 'fade_from_bottom',
+          contentStyle: { backgroundColor: '#060709' },
         }}
       >
-        <Stack.Screen name="index" />
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="index" options={{ contentStyle: { backgroundColor: '#060709' } }} />
+        <Stack.Screen name="(auth)" options={{ contentStyle: { backgroundColor: '#060709' } }} />
+        <Stack.Screen name="(tabs)" options={{ contentStyle: { backgroundColor: '#060709' } }} />
         <Stack.Screen
           name="personas/crear"
           options={{
             animation: 'slide_from_right',
             presentation: 'card',
+            contentStyle: { backgroundColor: '#060709' },
           }}
         />
         <Stack.Screen
@@ -65,6 +66,7 @@ function NavigationGuard() {
           options={{
             animation: 'slide_from_right',
             presentation: 'card',
+            contentStyle: { backgroundColor: '#060709' },
           }}
         />
         <Stack.Screen
@@ -72,6 +74,7 @@ function NavigationGuard() {
           options={{
             animation: 'slide_from_right',
             presentation: 'card',
+            contentStyle: { backgroundColor: '#060709' },
           }}
         />
         <Stack.Screen
@@ -79,6 +82,7 @@ function NavigationGuard() {
           options={{
             animation: 'slide_from_right',
             presentation: 'card',
+            contentStyle: { backgroundColor: '#060709' },
           }}
         />
         <Stack.Screen
@@ -86,6 +90,7 @@ function NavigationGuard() {
           options={{
             animation: 'slide_from_right',
             presentation: 'card',
+            contentStyle: { backgroundColor: '#060709' },
           }}
         />
         <Stack.Screen
@@ -93,23 +98,43 @@ function NavigationGuard() {
           options={{
             animation: 'slide_from_right',
             presentation: 'card',
+            contentStyle: { backgroundColor: '#060709' },
           }}
         />
         <Stack.Screen
-          name="vencimientos/index"
+          name="vencimientos"
           options={{
             animation: 'slide_from_right',
             presentation: 'card',
+            contentStyle: { backgroundColor: '#060709' },
           }}
         />
       </Stack>
+      {showSplashOverlay && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: '#060709',
+            zIndex: 999,
+          }}
+        >
+          <SplashScreen />
+        </View>
+      )}
     </View>
   )
 }
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+    <SafeAreaProvider
+      initialMetrics={initialWindowMetrics}
+      style={{ flex: 1, backgroundColor: '#060709' }}
+    >
       <StatusBar style="light" />
       <AuthProvider>
         <PeopleProvider>

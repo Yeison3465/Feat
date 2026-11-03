@@ -69,7 +69,7 @@ export const LateFeeSettingsCard: React.FC<LateFeeSettingsCardProps> = ({
 
   return (
     <Animated.View
-      entering={reducedMotion ? undefined : FadeInDown.delay(60).duration(260).springify()}
+      entering={reducedMotion ? undefined : FadeInDown.delay(70).duration(420).springify().damping(18).stiffness(160)}
       className="bg-[#12131C] border border-[#232433] rounded-[24px] p-5 mb-5 shadow-xl shadow-black"
     >
       <View className="flex-row items-center justify-between mb-2">
@@ -127,8 +127,8 @@ export const LateFeeSettingsCard: React.FC<LateFeeSettingsCardProps> = ({
       {/* Si está activa la mora: Tasa de mora y Base de cálculo */}
       {moraEnabled && (
         <Animated.View
-          entering={reducedMotion ? undefined : FadeInDown.duration(220)}
-          exiting={reducedMotion ? undefined : FadeOutUp.duration(180)}
+          entering={reducedMotion ? undefined : FadeInDown.duration(340).springify()}
+          exiting={reducedMotion ? undefined : FadeOutUp.duration(240)}
         >
           <View className="mb-4">
             <Text className="text-stone-300 text-xs font-medium mb-1.5 ml-1">

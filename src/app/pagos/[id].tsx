@@ -135,7 +135,7 @@ export default function DetallePagoScreen() {
       >
         {/* Cabecera */}
         <Animated.View
-          entering={FadeInDown.duration(260)}
+          entering={reducedMotion ? undefined : FadeInDown.duration(380).springify()}
           className="flex-row items-center justify-between mt-2 mb-6"
         >
           <Pressable
@@ -154,7 +154,7 @@ export default function DetallePagoScreen() {
 
         {/* Tarjeta Hero del Pago */}
         <Animated.View
-          entering={FadeInDown.delay(70).duration(300).springify()}
+          entering={reducedMotion ? undefined : FadeInDown.delay(70).duration(420).springify().damping(18).stiffness(160)}
           className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-6 items-center mb-5 shadow-2xl shadow-black"
         >
           {isReversalEntry ? (
@@ -236,7 +236,7 @@ export default function DetallePagoScreen() {
 
         {/* Detalles de la Transacción */}
         <Animated.View
-          entering={FadeInUp.delay(140).duration(300).springify()}
+          entering={reducedMotion ? undefined : FadeInUp.delay(120).duration(420).springify().damping(18).stiffness(160)}
           className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-5 mb-5 shadow-xl shadow-black"
         >
           <Text className="text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-3">
@@ -270,7 +270,7 @@ export default function DetallePagoScreen() {
         {/* Distribución del Recaudo */}
         {distribuciones.length > 0 && (
           <Animated.View
-            entering={FadeInUp.delay(190).duration(300).springify()}
+            entering={reducedMotion ? undefined : FadeInUp.delay(180).duration(420).springify().damping(18).stiffness(160)}
             className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-5 mb-5 shadow-xl shadow-black"
           >
             <Text className="text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-3">
@@ -304,7 +304,7 @@ export default function DetallePagoScreen() {
         {/* Notas */}
         {pago.notas && (
           <Animated.View
-            entering={FadeInUp.delay(220).duration(300)}
+            entering={reducedMotion ? undefined : FadeInUp.delay(220).duration(380)}
             className="bg-[#12131A] border border-[#1E2030] rounded-2xl p-4 mb-5"
           >
             <Text className="text-zinc-500 text-[11px] uppercase font-semibold mb-1">
@@ -318,7 +318,7 @@ export default function DetallePagoScreen() {
 
         {/* Acción: Corregir / Reversar Operación (FL-10) */}
         {!isReversalEntry && !isReversed && (
-          <Animated.View entering={FadeInUp.delay(260).duration(300)} className="mt-2 mb-4">
+          <Animated.View entering={reducedMotion ? undefined : FadeInUp.delay(260).duration(380)} className="mt-2 mb-4">
             <Pressable
               onPress={() => {
                 setReverseError(null)

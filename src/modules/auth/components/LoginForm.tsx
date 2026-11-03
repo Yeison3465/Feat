@@ -67,6 +67,7 @@ export const LoginForm: React.FC = () => {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={{ flex: 1, backgroundColor: '#060709' }}
       className="flex-1 bg-[#060709]"
     >
       {/* Resplandor radial superior idéntico a Figma */}

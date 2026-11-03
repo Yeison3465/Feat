@@ -60,7 +60,7 @@ export const InstallmentCard: React.FC<InstallmentCardProps> = ({ installment, o
 
   return (
     <Animated.View
-      entering={reducedMotion ? undefined : FadeInDown.duration(220).springify()}
+      entering={reducedMotion ? undefined : FadeInDown.duration(380).springify().damping(18).stiffness(160)}
       style={scaleStyle}
     >
       <Pressable

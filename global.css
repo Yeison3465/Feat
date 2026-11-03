@@ -5,3 +5,8 @@
 :root {
   --css-interop-darkMode: class dark;
 }
+
+html, body, #root, [data-rmiz-View], [role="region"] {
+  background-color: #060709 !important;
+  color-scheme: dark;
+}

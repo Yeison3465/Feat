@@ -73,7 +73,7 @@ export const LoanCard: React.FC<LoanCardProps> = ({ loan }) => {
 
   return (
     <Animated.View
-      entering={reducedMotion ? undefined : FadeInDown.duration(240).springify()}
+      entering={reducedMotion ? undefined : FadeInDown.duration(420).springify().damping(18).stiffness(160)}
       style={scaleStyle}
     >
       <Pressable

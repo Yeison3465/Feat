@@ -31,7 +31,7 @@ export const SkeletonBox: React.FC<SkeletonBoxProps> = ({
     }
 
     opacity.value = withRepeat(
-      withTiming(0.75, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+      withTiming(0.75, { duration: 1100, easing: Easing.inOut(Easing.ease) }),
       -1,
       true
     )

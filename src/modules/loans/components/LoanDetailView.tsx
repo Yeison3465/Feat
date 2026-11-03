@@ -128,7 +128,7 @@ export const LoanDetailView: React.FC<LoanDetailViewProps> = ({
       >
         {/* Cabecera superior con Volver y Código */}
         <Animated.View
-          entering={FadeInDown.duration(260)}
+          entering={FadeInDown.duration(380).springify()}
           className="flex-row items-center justify-between mt-2 mb-5"
         >
           <Pressable
@@ -150,7 +150,7 @@ export const LoanDetailView: React.FC<LoanDetailViewProps> = ({
 
         {/* Ficha del Prestatario (Clickeable hacia Detalle de Persona) */}
         <Animated.View
-          entering={FadeInDown.delay(70).duration(300).springify()}
+          entering={FadeInDown.delay(70).duration(420).springify().damping(18).stiffness(160)}
           className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-5 mb-5 shadow-2xl shadow-black"
         >
           <View className="flex-row items-center justify-between">
@@ -198,7 +198,7 @@ export const LoanDetailView: React.FC<LoanDetailViewProps> = ({
 
         {/* Panel Hero: Métricas Financieras del Préstamo */}
         <Animated.View
-          entering={FadeInDown.delay(140).duration(300).springify()}
+          entering={FadeInDown.delay(120).duration(420).springify().damping(18).stiffness(160)}
           className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-5 mb-5 shadow-2xl shadow-black"
         >
           <Text className="text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-2">

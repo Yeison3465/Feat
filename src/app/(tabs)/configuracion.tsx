@@ -15,7 +15,7 @@ export default function ConfiguracionScreen() {
   const { settings, saving, updateSettings } = useSettings()
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-[#07070A]">
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#07070A' }} edges={['top']} className="flex-1 bg-[#07070A]">
       <ScrollView
         contentContainerStyle={{ paddingBottom: 40 }}
         className="px-6 pt-4 max-w-md mx-auto w-full"
@@ -43,7 +43,7 @@ export default function ConfiguracionScreen() {
 
         {/* Tarjeta de Cuenta de Administrador */}
         <Animated.View
-          entering={reducedMotion ? undefined : FadeInUp.delay(120).duration(260).springify()}
+          entering={reducedMotion ? undefined : FadeInUp.delay(100).duration(420).springify().damping(18).stiffness(160)}
           className="bg-[#12131C] border border-[#232433] rounded-[24px] p-5 mb-5 shadow-xl shadow-black"
         >
           <Text className="text-stone-400 text-xs font-semibold uppercase tracking-wider mb-4">

@@ -50,7 +50,7 @@ export const PersonDetailView: React.FC<PersonDetailViewProps> = ({ person, onEd
       <View className="px-6 pb-6 max-w-md mx-auto w-full">
         {/* Barra superior con Volver y Editar */}
         <Animated.View
-          entering={FadeInDown.duration(260)}
+          entering={FadeInDown.duration(380).springify()}
           className="flex-row items-center justify-between mb-6"
         >
           <Pressable
@@ -77,7 +77,7 @@ export const PersonDetailView: React.FC<PersonDetailViewProps> = ({ person, onEd
 
         {/* Ficha Principal con Avatar */}
         <Animated.View
-          entering={FadeInDown.delay(70).duration(300).springify()}
+          entering={FadeInDown.delay(70).duration(420).springify().damping(18).stiffness(160)}
           className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-6 items-center mb-5 shadow-2xl shadow-black"
         >
           <View className="w-20 h-20 rounded-2xl bg-[#191316] border border-[#2F191D] items-center justify-center mb-3 shadow-lg shadow-black">

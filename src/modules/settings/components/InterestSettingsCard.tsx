@@ -61,7 +61,7 @@ export const InterestSettingsCard: React.FC<InterestSettingsCardProps> = ({
 
   return (
     <Animated.View
-      entering={reducedMotion ? undefined : FadeInDown.duration(260).springify()}
+      entering={reducedMotion ? undefined : FadeInDown.duration(420).springify().damping(18).stiffness(160)}
       className="bg-[#12131C] border border-[#232433] rounded-[24px] p-5 mb-5 shadow-xl shadow-black"
     >
       <View className="flex-row items-center justify-between mb-2">

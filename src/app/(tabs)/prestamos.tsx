@@ -59,7 +59,7 @@ export default function PrestamosScreen() {
   ]
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-[#060709]">
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#060709' }} edges={['top']} className="flex-1 bg-[#060709]">
       <View className="px-6 pt-4 pb-2">
         {/* Cabecera Superior con Botón Crear */}
         <View className="flex-row items-center justify-between mb-2">
@@ -85,12 +85,12 @@ export default function PrestamosScreen() {
 
         {/* Accesos Directos a SCR-17 (Atrasados) y SCR-18 (Próximos Vencimientos) */}
         <Animated.View
-          entering={reducedMotion ? undefined : FadeInDown.duration(240)}
+          entering={reducedMotion ? undefined : FadeInDown.duration(400).springify().damping(18).stiffness(160)}
           className="flex-row gap-2.5 my-1.5"
         >
           <Pressable
             onPress={() =>
-              router.push({ pathname: '/vencimientos/index' as any, params: { tab: 'atrasados' } })
+              router.push({ pathname: '/vencimientos', params: { tab: 'atrasados' } })
             }
             className={`flex-1 flex-row items-center justify-between px-3.5 py-2.5 rounded-xl border ${
               overdueObligations.length > 0
@@ -122,7 +122,7 @@ export default function PrestamosScreen() {
 
           <Pressable
             onPress={() =>
-              router.push({ pathname: '/vencimientos/index' as any, params: { tab: 'proximos' } })
+              router.push({ pathname: '/vencimientos', params: { tab: 'proximos' } })
             }
             className="flex-1 flex-row items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#12131A] border border-[#1E2030]"
           >

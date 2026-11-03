@@ -19,7 +19,7 @@ export default function DashboardScreen() {
   const recentLoans = allLoans.slice(0, 3)
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-[#060709]">
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#060709' }} edges={['top']} className="flex-1 bg-[#060709]">
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
@@ -42,7 +42,7 @@ export default function DashboardScreen() {
 
         {/* Tarjeta Hero: Cartera Pendiente en Vivo */}
         <Animated.View
-          entering={reducedMotion ? undefined : FadeInDown.duration(260).springify()}
+          entering={reducedMotion ? undefined : FadeInDown.duration(420).springify().damping(18).stiffness(160)}
           className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-5 mb-5 shadow-2xl shadow-black"
         >
           <Text className="text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-2">
@@ -92,7 +92,7 @@ export default function DashboardScreen() {
 
         {/* Botones de Acción Rápida (4 Circulares / Píldoras Figma) */}
         <Animated.View
-          entering={reducedMotion ? undefined : FadeInUp.delay(60).duration(260).springify()}
+          entering={reducedMotion ? undefined : FadeInUp.delay(80).duration(420).springify().damping(18).stiffness(160)}
           className="flex-row gap-3 mb-6"
         >
           <AnimatedPressable

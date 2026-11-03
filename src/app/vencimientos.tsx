@@ -22,12 +22,12 @@ import {
   Clock,
   ShieldCheck,
 } from 'lucide-react-native'
-import { useLoans } from '../../modules/loans/hooks/useLoans'
-import { DueHorizonFilter, ObligationItem } from '../../modules/loans/types'
-import { formatCOP, formatDateFriendly } from '../../shared/utils/currency'
+import { useLoans } from '../modules/loans/hooks/useLoans'
+import { DueHorizonFilter, ObligationItem } from '../modules/loans/types'
+import { formatCOP, formatDateFriendly } from '../shared/utils/currency'
 import Animated, { FadeInDown, FadeInUp, useReducedMotion } from 'react-native-reanimated'
-import { SkeletonCardList } from '../../shared/components/SkeletonBox'
-import { AnimatedPressable } from '../../shared/components/AnimatedPressable'
+import { SkeletonCardList } from '../shared/components/SkeletonBox'
+import { AnimatedPressable } from '../shared/components/AnimatedPressable'
 
 export default function VencimientosScreen() {
   const router = useRouter()
@@ -87,7 +87,7 @@ export default function VencimientosScreen() {
         entering={
           reducedMotion
             ? undefined
-            : FadeInDown.delay(Math.min(index * 40, 200)).duration(240).springify()
+            : FadeInDown.delay(Math.min(index * 60, 300)).duration(400).springify().damping(18).stiffness(160)
         }
         className={`bg-[#12131A] border rounded-2xl p-4 mb-3 ${
           isOverdue
@@ -235,7 +235,7 @@ export default function VencimientosScreen() {
   }
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-[#060709]">
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#060709' }} edges={['top']} className="flex-1 bg-[#060709]">
       {/* Header */}
       <View className="px-6 pt-3 pb-2">
         <View className="flex-row items-center justify-between mb-3">

@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "scheme": "prestamos",
     "userInterfaceStyle": "dark",
+    "backgroundColor": "#060709",
     "ios": {
       "supportsTablet": true
     },
