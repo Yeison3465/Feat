@@ -18,3 +18,7 @@ yarn-error.log*
 
 expo-env.d.ts
 # @end expo-cli
+
+# Documentation PDFs
+*.pdf
+docs/*.pdf
