@@ -14,6 +14,7 @@ export default function Root({ children }: PropsWithChildren) {
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
         <meta name="theme-color" content="#060709" />
+        <title>FEAT — Cartera Privada</title>
         <ScrollViewStyleReset />
         <style dangerouslySetInnerHTML={{
           __html: `

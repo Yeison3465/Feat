@@ -1,7 +1,7 @@
 import React from 'react'
-import { View, Text, Pressable, ActivityIndicator, ScrollView } from 'react-native'
+import { View, Text, ActivityIndicator, ScrollView } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { LogOut, User, Shield } from 'lucide-react-native'
+import { LogOut, User, ShieldCheck, Database, Clock, Smartphone } from 'lucide-react-native'
 import { useAuth } from '../../modules/auth/hooks/useAuth'
 import { useSettings } from '../../modules/settings/hooks/useSettings'
 import { InterestSettingsCard } from '../../modules/settings/components/InterestSettingsCard'
@@ -20,6 +20,13 @@ export default function ConfiguracionScreen() {
         contentContainerStyle={{ paddingBottom: 40 }}
         className="px-6 pt-4 max-w-md mx-auto w-full"
       >
+        <View className="flex-row items-center gap-1.5 mb-1">
+          <View className="w-1.5 h-1.5 rounded-full bg-[#FF7854]" />
+          <Text className="text-zinc-400 text-[11px] font-mono font-bold tracking-widest uppercase">
+            FEAT
+          </Text>
+        </View>
+
         <Text className="text-white text-3xl font-bold tracking-tight mb-1">
           Configuración
         </Text>
@@ -41,7 +48,7 @@ export default function ConfiguracionScreen() {
           loading={saving}
         />
 
-        {/* Tarjeta de Cuenta de Administrador */}
+        {/* Tarjeta de Cuenta de Administrador (SCR-21) */}
         <Animated.View
           entering={reducedMotion ? undefined : FadeInUp.delay(100).duration(420).springify().damping(18).stiffness(160)}
           className="bg-[#12131C] border border-[#232433] rounded-[24px] p-5 mb-5 shadow-xl shadow-black"
@@ -50,7 +57,7 @@ export default function ConfiguracionScreen() {
             Cuenta administrativa
           </Text>
 
-          <View className="flex-row items-center mb-3">
+          <View className="flex-row items-center mb-4">
             <View className="w-12 h-12 rounded-xl bg-[#1A1215] border border-[#3A1F24] items-center justify-center mr-3.5">
               <User size={22} color="#FF7854" />
             </View>
@@ -64,12 +71,60 @@ export default function ConfiguracionScreen() {
             </View>
           </View>
 
-          <View className="flex-row items-center pt-3 border-t border-[#1E2030]">
-            <Shield size={14} color="#10B981" />
-            <Text className="text-stone-400 text-xs ml-2">
-              Aislamiento por usuario garantizado (RLS activo)
-            </Text>
+          {/* Indicadores de Seguridad y Motor */}
+          <View className="space-y-2 pt-3 border-t border-[#1E2030]">
+            <View className="flex-row items-center justify-between py-1">
+              <View className="flex-row items-center">
+                <Database size={13} color="#9CA3AF" />
+                <Text className="text-zinc-400 text-xs ml-2">Base de datos</Text>
+              </View>
+              <Text className="text-emerald-400 text-xs font-mono font-semibold">
+                Supabase PostgreSQL
+              </Text>
+            </View>
+
+            <View className="flex-row items-center justify-between py-1">
+              <View className="flex-row items-center">
+                <ShieldCheck size={13} color="#10B981" />
+                <Text className="text-zinc-400 text-xs ml-2">Aislamiento RLS</Text>
+              </View>
+              <Text className="text-zinc-300 text-xs font-mono font-medium">
+                Activo y verificado
+              </Text>
+            </View>
+
+            <View className="flex-row items-center justify-between py-1">
+              <View className="flex-row items-center">
+                <Clock size={13} color="#FF7854" />
+                <Text className="text-zinc-400 text-xs ml-2">Inactividad</Text>
+              </View>
+              <Text className="text-zinc-300 text-xs font-mono">
+                Cierre auto en 15m
+              </Text>
+            </View>
           </View>
+        </Animated.View>
+
+        {/* Tarjeta Informativa de Aplicación FEAT */}
+        <Animated.View
+          entering={reducedMotion ? undefined : FadeInUp.delay(140).duration(420).springify().damping(18).stiffness(160)}
+          className="bg-[#0F1017] border border-[#1E2030] rounded-2xl p-4 mb-6"
+        >
+          <View className="flex-row items-center justify-between mb-2">
+            <View className="flex-row items-center gap-1.5">
+              <Smartphone size={14} color="#FF7854" />
+              <Text className="text-white text-xs font-bold font-mono">
+                FEAT · Cartera Privada
+              </Text>
+            </View>
+            <View className="bg-[#1C1E2B] px-2 py-0.5 rounded-full">
+              <Text className="text-zinc-400 text-[10px] font-mono">v1.0.0</Text>
+            </View>
+          </View>
+
+          <Text className="text-zinc-500 text-[11px] leading-relaxed">
+            Aplicación móvil privada para gestión integral de créditos personales, liquidación de intereses sobre saldo, cobro de mora y registro inmutable de movimientos en pesos colombianos (COP).
+          </Text>
         </Animated.View>
 
         {/* Botón de Cerrar Sesión */}

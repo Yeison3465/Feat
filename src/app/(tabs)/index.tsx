@@ -63,6 +63,12 @@ export default function DashboardScreen() {
         {/* Cabecera Principal */}
         <View className="flex-row items-center justify-between mb-4">
           <View>
+            <View className="flex-row items-center gap-1.5 mb-1">
+              <View className="w-1.5 h-1.5 rounded-full bg-[#FF7854]" />
+              <Text className="text-zinc-400 text-[11px] font-mono font-bold tracking-widest uppercase">
+                FEAT
+              </Text>
+            </View>
             <Text className="text-white text-3xl font-bold tracking-tight">
               Dashboard
             </Text>

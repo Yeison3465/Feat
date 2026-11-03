@@ -113,11 +113,11 @@ export const LoginForm: React.FC = () => {
             <Wallet size={26} color="#FF7854" strokeWidth={2.2} />
           </View>
 
-          {/* Badge [NOMBREAPP] con punto coral */}
+          {/* Badge FEAT con punto coral */}
           <View className="flex-row items-center justify-center gap-1.5 mb-2">
             <View className="w-1.5 h-1.5 rounded-full bg-[#E05335]" />
-            <Text className="text-zinc-400 text-xs font-mono font-semibold tracking-widest uppercase">
-              [NOMBREAPP]
+            <Text className="text-zinc-400 text-xs font-mono font-bold tracking-widest uppercase">
+              FEAT
             </Text>
           </View>
 
