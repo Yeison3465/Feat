@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { View, Text, ActivityIndicator, Platform } from 'react-native'
+import { View, Text, ActivityIndicator, Platform, Image } from 'react-native'
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -9,7 +9,9 @@ import Animated, {
   FadeIn,
   useReducedMotion,
 } from 'react-native-reanimated'
-import { Wallet, Shield } from 'lucide-react-native'
+import { Shield } from 'lucide-react-native'
+
+const APP_ICON = require('../../../assets/icon.png')
 
 export const SplashScreen: React.FC = () => {
   const reducedMotion = useReducedMotion()
@@ -18,7 +20,7 @@ export const SplashScreen: React.FC = () => {
   useEffect(() => {
     if (!reducedMotion) {
       pulse.value = withRepeat(
-        withTiming(1.06, { duration: 1100, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1.05, { duration: 1100, easing: Easing.inOut(Easing.ease) }),
         -1,
         true
       )
@@ -53,12 +55,12 @@ export const SplashScreen: React.FC = () => {
 
       <View />
 
-      {/* Centro: Isotipo, Marca FEAT y Estado */}
+      {/* Centro: Isotipo Oficial FEAT, Marca y Estado */}
       <Animated.View
         entering={reducedMotion ? undefined : FadeIn.duration(400)}
         className="items-center"
       >
-        {/* Isotipo con caja redondeada oscura y resplandor coral */}
+        {/* Isotipo Oficial con esquinas redondeadas y halo */}
         <Animated.View
           style={[
             animatedStyle,
@@ -70,9 +72,13 @@ export const SplashScreen: React.FC = () => {
               elevation: 10,
             },
           ]}
-          className="w-16 h-16 rounded-2xl bg-[#191316] border border-[#2F191D] items-center justify-center mb-4"
+          className="w-24 h-24 rounded-3xl bg-[#000000] border border-[#232433] items-center justify-center mb-4 overflow-hidden"
         >
-          <Wallet size={30} color="#FF7854" strokeWidth={2.2} />
+          <Image
+            source={APP_ICON}
+            style={{ width: '100%', height: '100%' }}
+            resizeMode="cover"
+          />
         </Animated.View>
 
         {/* Badge FEAT con punto coral vibrante */}
