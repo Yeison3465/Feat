@@ -1,11 +1,80 @@
 import { supabase } from '../../../lib/supabase'
 import { settingsService } from '../../settings/services/settings.service'
+import { addMonthsISO, todayISO } from '../../../shared/utils/dates'
+import { Database } from '../../../shared/types/database.types'
 import {
+  AmortizationType,
   CreateLoanDTO,
   LoanConditionsSnapshot,
   LoanFilter,
   LoanWithDetails,
 } from '../types'
+
+// Código Postgres de violación de llave foránea
+const FK_VIOLATION = '23503'
+
+/**
+ * Genera el calendario inicial de cuotas según la modalidad.
+ * Las fechas mensuales conservan el día de pago (ajustado en meses cortos).
+ */
+function buildInitialInstallments(params: {
+  userId: string
+  prestamoId: string
+  capital: number
+  tasaMensual: number
+  tipo: AmortizationType
+  numeroCuotas: number
+  fechaPrimerVencimiento: string
+}) {
+  const { userId, prestamoId, capital, tasaMensual, tipo, numeroCuotas, fechaPrimerVencimiento } = params
+  const totalInteres = Math.round(capital * (tasaMensual / 100))
+  const base = {
+    propietario_id: userId,
+    prestamo_id: prestamoId,
+    capital_pagado: 0,
+    interes_pagado: 0,
+    mora_acumulada: 0,
+    mora_pagada: 0,
+    esta_liquidada: false,
+  }
+
+  if (tipo === 'solo_interes' || tipo === 'pago_unico') {
+    // solo_interes: 1 obligación con el interés; pago_unico: capital + interés en una cuota
+    return [
+      {
+        ...base,
+        numero_cuota: 1,
+        fecha_vencimiento: fechaPrimerVencimiento,
+        capital_esperado: tipo === 'pago_unico' ? capital : 0,
+        interes_esperado: totalInteres,
+      },
+    ]
+  }
+
+  const capitalPorCuota = Math.floor(capital / numeroCuotas)
+  const interesPorCuota = Math.floor(totalInteres / numeroCuotas)
+  let capitalAcumulado = 0
+  let interesAcumulado = 0
+  const cuotas = []
+
+  for (let i = 1; i <= numeroCuotas; i++) {
+    // Ajustar redondeo en la última cuota para exactitud de suma
+    const cap = i === numeroCuotas ? capital - capitalAcumulado : capitalPorCuota
+    const inte = i === numeroCuotas ? totalInteres - interesAcumulado : interesPorCuota
+    capitalAcumulado += cap
+    interesAcumulado += inte
+
+    cuotas.push({
+      ...base,
+      numero_cuota: i,
+      fecha_vencimiento: addMonthsISO(fechaPrimerVencimiento, i - 1),
+      capital_esperado: cap,
+      interes_esperado: inte,
+    })
+  }
+
+  return cuotas
+}
 
 export const loansService = {
   /**
@@ -106,12 +175,7 @@ export const loansService = {
     const ultimaCuota = cuotas[cuotas.length - 1]
     const nuevoNumero = (ultimaCuota?.numero_cuota || 0) + 1
 
-    const baseDate = new Date((ultimaCuota?.fecha_vencimiento || new Date().toISOString().split('T')[0]) + 'T00:00:00')
-    baseDate.setMonth(baseDate.getMonth() + 1)
-    const yyyy = baseDate.getFullYear()
-    const mm = String(baseDate.getMonth() + 1).padStart(2, '0')
-    const dd = String(baseDate.getDate()).padStart(2, '0')
-    const proximaFecha = `${yyyy}-${mm}-${dd}`
+    const proximaFecha = addMonthsISO(ultimaCuota?.fecha_vencimiento || todayISO(), 1)
 
     const exento = (prestamo.personas as any)?.exento_interes_ordinario ?? false
     const tasa = exento ? 0 : prestamo.tasa_mensual
@@ -179,7 +243,7 @@ export const loansService = {
       throw new Error('Debes seleccionar un prestatario válido.')
     }
 
-    if (!dto.capital_original || dto.capital_original <= 0) {
+    if (!Number.isFinite(dto.capital_original) || dto.capital_original <= 0) {
       throw new Error('El capital original debe ser mayor a cero pesos.')
     }
 
@@ -221,7 +285,7 @@ export const loansService = {
     const tasaMora = dto.tasa_mora ?? settings.tasa_mora_defecto
     const tipoAmortizacion = dto.tipo_amortizacion ?? 'solo_interes'
     const numeroCuotas = Math.max(1, dto.numero_cuotas ?? 1)
-    const fechaDesembolso = dto.fecha_desembolso ?? new Date().toISOString().split('T')[0]
+    const fechaDesembolso = dto.fecha_desembolso ?? todayISO()
 
     // 4. Construir el snapshot inmutable de condiciones pactadas
     const snapshot: LoanConditionsSnapshot = {
@@ -263,72 +327,15 @@ export const loansService = {
     }
 
     // 6. Generar cuotas iniciales según la modalidad
-    const cuotasPayload = []
-    const totalInteres = Math.round(dto.capital_original * (tasaMensual / 100))
-
-    if (tipoAmortizacion === 'solo_interes') {
-      // 1 obligación periódica con el interés devengado
-      cuotasPayload.push({
-        propietario_id: user.id,
-        prestamo_id: loan.id,
-        numero_cuota: 1,
-        fecha_vencimiento: dto.fecha_primer_vencimiento,
-        capital_esperado: 0,
-        interes_esperado: totalInteres,
-        capital_pagado: 0,
-        interes_pagado: 0,
-        mora_acumulada: 0,
-        mora_pagada: 0,
-        esta_liquidada: false,
-      })
-    } else if (tipoAmortizacion === 'pago_unico') {
-      // Capital + interés en una sola cuota
-      cuotasPayload.push({
-        propietario_id: user.id,
-        prestamo_id: loan.id,
-        numero_cuota: 1,
-        fecha_vencimiento: dto.fecha_primer_vencimiento,
-        capital_esperado: dto.capital_original,
-        interes_esperado: totalInteres,
-        capital_pagado: 0,
-        interes_pagado: 0,
-        mora_acumulada: 0,
-        mora_pagada: 0,
-        esta_liquidada: false,
-      })
-    } else if (tipoAmortizacion === 'cuotas_fijas') {
-      const capitalPorCuota = Math.floor(dto.capital_original / numeroCuotas)
-      const interesPorCuota = Math.floor(totalInteres / numeroCuotas)
-      let capitalAcumulado = 0
-      let interesAcumulado = 0
-
-      for (let i = 1; i <= numeroCuotas; i++) {
-        // Calcular fecha de vencimiento incremental mensual
-        const baseDate = new Date(dto.fecha_primer_vencimiento)
-        baseDate.setMonth(baseDate.getMonth() + (i - 1))
-        const fechaCuota = baseDate.toISOString().split('T')[0]
-
-        // Ajustar centavos/redondeo en la última cuota para exactitud de suma
-        const cap = i === numeroCuotas ? dto.capital_original - capitalAcumulado : capitalPorCuota
-        const inte = i === numeroCuotas ? totalInteres - interesAcumulado : interesPorCuota
-        capitalAcumulado += cap
-        interesAcumulado += inte
-
-        cuotasPayload.push({
-          propietario_id: user.id,
-          prestamo_id: loan.id,
-          numero_cuota: i,
-          fecha_vencimiento: fechaCuota,
-          capital_esperado: cap,
-          interes_esperado: inte,
-          capital_pagado: 0,
-          interes_pagado: 0,
-          mora_acumulada: 0,
-          mora_pagada: 0,
-          esta_liquidada: false,
-        })
-      }
-    }
+    const cuotasPayload = buildInitialInstallments({
+      userId: user.id,
+      prestamoId: loan.id,
+      capital: dto.capital_original,
+      tasaMensual,
+      tipo: tipoAmortizacion,
+      numeroCuotas,
+      fechaPrimerVencimiento: dto.fecha_primer_vencimiento,
+    })
 
     if (cuotasPayload.length > 0) {
       const { error: cuotasErr } = await supabase.from('cuotas').insert(cuotasPayload)
@@ -357,5 +364,223 @@ export const loansService = {
 
     // 8. Retornar préstamo con relaciones completas
     return this.getLoanById(loan.id)
+  },
+
+  async countPayments(prestamoId: string): Promise<number> {
+    const { count, error } = await supabase
+      .from('pagos')
+      .select('id', { count: 'exact', head: true })
+      .eq('prestamo_id', prestamoId)
+
+    if (error) {
+      throw new Error(`Error al consultar pagos del préstamo: ${error.message}`)
+    }
+    return count ?? 0
+  },
+
+  /**
+   * Edita un préstamo y regenera su calendario de cuotas.
+   * Solo se permite mientras no tenga pagos: los pagos confirmados no se
+   * modifican silenciosamente (regla 7 de negocio).
+   */
+  async updateLoan(id: string, dto: CreateLoanDTO): Promise<LoanWithDetails> {
+    if (!dto.persona_id) {
+      throw new Error('Debes seleccionar un prestatario válido.')
+    }
+    if (!Number.isFinite(dto.capital_original) || dto.capital_original <= 0) {
+      throw new Error('El capital original debe ser mayor a cero pesos.')
+    }
+    if (!dto.fecha_primer_vencimiento) {
+      throw new Error('La fecha del primer vencimiento es requerida.')
+    }
+
+    const {
+      data: { user },
+      error: authErr,
+    } = await supabase.auth.getUser()
+
+    if (authErr || !user) {
+      throw new Error('Debes tener una sesión activa para editar préstamos.')
+    }
+
+    const pagosCount = await this.countPayments(id)
+    if (pagosCount > 0) {
+      throw new Error(
+        'Este préstamo ya tiene pagos registrados y no se puede editar. Reversa los pagos primero si necesitas corregirlo.'
+      )
+    }
+
+    const { data: existing, error: existingErr } = await supabase
+      .from('prestamos')
+      .select('id, tasa_mora, resumen_condiciones')
+      .eq('id', id)
+      .single()
+
+    if (existingErr || !existing) {
+      throw new Error('No se encontró el préstamo a editar.')
+    }
+
+    const { data: persona, error: personError } = await supabase
+      .from('personas')
+      .select('id, nombre, exento_interes_ordinario')
+      .eq('id', dto.persona_id)
+      .single()
+
+    if (personError || !persona) {
+      throw new Error('No se encontró el prestatario seleccionado.')
+    }
+
+    const previous = existing.resumen_condiciones as unknown as LoanConditionsSnapshot | null
+    const settings = await settingsService.getSettings()
+
+    let tasaMensual = settings.tasa_mensual_defecto
+    if (persona.exento_interes_ordinario) {
+      tasaMensual = dto.tasa_mensual ?? 0
+    } else if (dto.tasa_mensual !== undefined) {
+      tasaMensual = dto.tasa_mensual
+    }
+
+    const tasaMora = dto.tasa_mora ?? existing.tasa_mora
+    const tipoAmortizacion = dto.tipo_amortizacion ?? 'solo_interes'
+    const numeroCuotas = Math.max(1, dto.numero_cuotas ?? 1)
+    const fechaDesembolso = dto.fecha_desembolso ?? todayISO()
+
+    const cuotasPayload = buildInitialInstallments({
+      userId: user.id,
+      prestamoId: id,
+      capital: dto.capital_original,
+      tasaMensual,
+      tipo: tipoAmortizacion,
+      numeroCuotas,
+      fechaPrimerVencimiento: dto.fecha_primer_vencimiento,
+    })
+
+    const snapshot: LoanConditionsSnapshot = {
+      persona_nombre: persona.nombre,
+      persona_id: persona.id,
+      capital_original: dto.capital_original,
+      tasa_mensual_pactada: tasaMensual,
+      tasa_mora_pactada: tasaMora,
+      dias_gracia: previous?.dias_gracia ?? settings.dias_gracia_defecto ?? 3,
+      exento_interes: persona.exento_interes_ordinario && tasaMensual === 0,
+      tipo_amortizacion: tipoAmortizacion,
+      numero_cuotas: numeroCuotas,
+      fecha_desembolso: fechaDesembolso,
+      fecha_primer_vencimiento: dto.fecha_primer_vencimiento,
+      fecha_creacion: previous?.fecha_creacion ?? new Date().toISOString(),
+    }
+
+    const { error: updErr } = await supabase
+      .from('prestamos')
+      .update({
+        persona_id: persona.id,
+        capital_original: dto.capital_original,
+        tasa_mensual: tasaMensual,
+        tasa_mora: tasaMora,
+        tipo_amortizacion: tipoAmortizacion,
+        fecha_desembolso: fechaDesembolso,
+        fecha_primer_vencimiento: dto.fecha_primer_vencimiento,
+        fecha_vencimiento_final: cuotasPayload[cuotasPayload.length - 1].fecha_vencimiento,
+        resumen_condiciones: snapshot as any,
+        estado: 'activo',
+        actualizado_en: new Date().toISOString(),
+      })
+      .eq('id', id)
+
+    if (updErr) {
+      throw new Error(`Error al actualizar el préstamo: ${updErr.message}`)
+    }
+
+    // Regenerar calendario: sin pagos, las cuotas no tienen distribuciones asociadas
+    const { error: delCuotasErr } = await supabase.from('cuotas').delete().eq('prestamo_id', id)
+    if (delCuotasErr) {
+      throw new Error(`Error al regenerar el calendario de cuotas: ${delCuotasErr.message}`)
+    }
+
+    const { error: insCuotasErr } = await supabase.from('cuotas').insert(cuotasPayload)
+    if (insCuotasErr) {
+      throw new Error(`Error al regenerar el calendario de cuotas: ${insCuotasErr.message}`)
+    }
+
+    // Mantener el asiento de desembolso alineado con el nuevo capital y fecha
+    const movimientoUpdate: Database['public']['Tables']['movimientos_prestamo']['Update'] = {
+      monto: dto.capital_original,
+      fecha_efectiva: fechaDesembolso,
+      metadatos: { persona_id: persona.id, persona_nombre: persona.nombre },
+    }
+    if (dto.notas?.trim()) movimientoUpdate.notas = dto.notas.trim()
+
+    const { error: movErr } = await supabase
+      .from('movimientos_prestamo')
+      .update(movimientoUpdate)
+      .eq('prestamo_id', id)
+      .eq('tipo_movimiento', 'desembolso')
+
+    if (movErr) {
+      console.warn('Advertencia al actualizar movimiento de desembolso:', movErr.message)
+    }
+
+    return this.getLoanById(id)
+  },
+
+  /**
+   * Elimina un préstamo con sus cuotas, pagos, distribuciones y movimientos.
+   * Primero intenta borrar el préstamo directamente (si la base tiene ON DELETE
+   * CASCADE se resuelve en una sola sentencia atómica). Solo si una llave foránea
+   * lo impide, borra las dependencias en orden y reintenta.
+   */
+  async deleteLoan(id: string): Promise<void> {
+    const deletePrestamo = () => supabase.from('prestamos').delete().eq('id', id).select('id')
+
+    const first = await deletePrestamo()
+    if (!first.error) {
+      if (!first.data || first.data.length === 0) {
+        throw new Error(
+          'No se pudo eliminar el préstamo. Verifica que la base de datos permita eliminar préstamos (política RLS de DELETE).'
+        )
+      }
+      return
+    }
+
+    if (first.error.code !== FK_VIOLATION) {
+      throw new Error(`Error al eliminar el préstamo: ${first.error.message}`)
+    }
+
+    const [{ data: pagos, error: pagosErr }, { data: cuotas, error: cuotasErr }] = await Promise.all([
+      supabase.from('pagos').select('id').eq('prestamo_id', id),
+      supabase.from('cuotas').select('id').eq('prestamo_id', id),
+    ])
+    if (pagosErr || cuotasErr) {
+      throw new Error(`Error al preparar la eliminación: ${(pagosErr || cuotasErr)?.message}`)
+    }
+
+    const pagoIds = (pagos ?? []).map((p) => p.id)
+    const cuotaIds = (cuotas ?? []).map((c) => c.id)
+
+    const steps = [
+      pagoIds.length > 0 ? () => supabase.from('distribucion_pagos').delete().in('pago_id', pagoIds) : null,
+      cuotaIds.length > 0 ? () => supabase.from('distribucion_pagos').delete().in('cuota_id', cuotaIds) : null,
+      () => supabase.from('movimientos_prestamo').delete().eq('prestamo_id', id),
+      () => supabase.from('pagos').delete().eq('prestamo_id', id),
+      () => supabase.from('cuotas').delete().eq('prestamo_id', id),
+    ]
+
+    for (const step of steps) {
+      if (!step) continue
+      const { error } = await step()
+      if (error) {
+        throw new Error(`Error al eliminar los registros del préstamo: ${error.message}`)
+      }
+    }
+
+    const retry = await deletePrestamo()
+    if (retry.error) {
+      throw new Error(`Error al eliminar el préstamo: ${retry.error.message}`)
+    }
+    if (!retry.data || retry.data.length === 0) {
+      throw new Error(
+        'No se pudo eliminar el préstamo. Verifica que la base de datos permita eliminar préstamos (política RLS de DELETE).'
+      )
+    }
   },
 }

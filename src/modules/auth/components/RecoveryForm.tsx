@@ -157,8 +157,8 @@ export const RecoveryForm: React.FC = () => {
                   onPress={handleSubmit}
                   disabled={loading}
                   style={{ height: 52 }}
-                  className={`w-full rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#C94422]/20 ${
-                    loading ? 'bg-[#C94422]/60' : 'bg-[#D34524] active:bg-[#E54F2C]'
+                  className={`w-full rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#C94422]/20 active:bg-[#E54F2C] ${
+                    loading ? 'bg-[#C94422]/60' : 'bg-[#D34524]'
                   }`}
                 >
                   {loading ? (

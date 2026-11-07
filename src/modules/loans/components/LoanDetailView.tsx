@@ -18,6 +18,9 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   FileText,
+  Pencil,
+  Trash2,
+  CalendarCheck,
 } from 'lucide-react-native'
 import { LoanWithDetails, LoanConditionsSnapshot, LoanInstallment } from '../types'
 import { LoanMovementItem, PaymentWithDetails } from '../../payments/types'
@@ -25,6 +28,7 @@ import { InstallmentCard } from './InstallmentCard'
 import { InstallmentDetailModal } from './InstallmentDetailModal'
 import { getInitials } from '../../../shared/utils/initials'
 import { formatCOP } from '../../../shared/utils/currency'
+import { formatDateLong } from '../../../shared/utils/dates'
 import { getSafeBottomInset } from '../../../shared/utils/responsive'
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated'
 
@@ -33,6 +37,8 @@ interface LoanDetailViewProps {
   readonly payments?: PaymentWithDetails[]
   readonly movements?: LoanMovementItem[]
   readonly historyLoading?: boolean
+  readonly onEdit?: () => void
+  readonly onDelete?: () => void
 }
 
 type DetailTab = 'cuotas' | 'pagos' | 'movimientos'
@@ -42,6 +48,8 @@ export const LoanDetailView: React.FC<LoanDetailViewProps> = ({
   payments = [],
   movements = [],
   historyLoading = false,
+  onEdit,
+  onDelete,
 }) => {
   const router = useRouter()
   const insets = useSafeAreaInsets()
@@ -141,10 +149,27 @@ export const LoanDetailView: React.FC<LoanDetailViewProps> = ({
           </Pressable>
 
           <View className="flex-row items-center gap-2">
-            <Text className="text-zinc-500 text-xs font-mono font-semibold">
-              #{shortCode}
-            </Text>
             {getStatusBadge()}
+            {onEdit && (
+              <Pressable
+                onPress={onEdit}
+                hitSlop={6}
+                accessibilityLabel="Editar préstamo"
+                className="w-9 h-9 rounded-xl bg-[#151622] border border-[#232433] items-center justify-center active:bg-[#202232]"
+              >
+                <Pencil size={15} color="#FF7854" />
+              </Pressable>
+            )}
+            {onDelete && (
+              <Pressable
+                onPress={onDelete}
+                hitSlop={6}
+                accessibilityLabel="Eliminar préstamo"
+                className="w-9 h-9 rounded-xl bg-red-950/20 border border-red-950/40 items-center justify-center active:bg-red-950/40"
+              >
+                <Trash2 size={15} color="#FB3758" />
+              </Pressable>
+            )}
           </View>
         </Animated.View>
 
@@ -201,15 +226,26 @@ export const LoanDetailView: React.FC<LoanDetailViewProps> = ({
           entering={FadeInDown.delay(120).duration(420).springify().damping(18).stiffness(160)}
           className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-5 mb-5 shadow-2xl shadow-black"
         >
-          <Text className="text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-2">
-            Saldo total adeudado
-          </Text>
+          <View className="flex-row items-center justify-between mb-2">
+            <Text className="text-zinc-400 text-xs font-semibold uppercase tracking-wider">
+              Saldo total adeudado
+            </Text>
+            <Text className="text-zinc-500 text-xs font-mono font-semibold">#{shortCode}</Text>
+          </View>
 
-          <View className="flex-row items-baseline gap-2 mb-4">
+          <View className="flex-row items-baseline gap-2 mb-3">
             <Text className="text-white text-3xl font-extrabold font-mono tracking-tight">
               {formatCOP(saldoExigibleTotal)}
             </Text>
             <Text className="text-zinc-500 text-sm font-mono font-semibold">COP</Text>
+          </View>
+
+          <View className="flex-row items-center mb-4">
+            <CalendarCheck size={14} color="#9CA3AF" />
+            <Text className="text-zinc-400 text-xs ml-1.5">
+              Prestado el{' '}
+              <Text className="text-white font-semibold">{formatDateLong(loan.fecha_desembolso)}</Text>
+            </Text>
           </View>
 
           {/* Grid de 2 Columnas para Desglose */}
@@ -288,7 +324,7 @@ export const LoanDetailView: React.FC<LoanDetailViewProps> = ({
               <View className="flex-row justify-between text-xs py-1">
                 <Text className="text-zinc-400 text-xs">Fecha de desembolso:</Text>
                 <Text className="text-white text-xs font-mono">
-                  {loan.fecha_desembolso}
+                  {formatDateLong(loan.fecha_desembolso)}
                 </Text>
               </View>
               <View className="flex-row justify-between text-xs py-1">

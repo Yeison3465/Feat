@@ -5,9 +5,9 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  Platform,
 } from 'react-native'
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Check, X, Clock } from 'lucide-react-native'
+import { addDaysISO, addMonthsISO, todayISO, toISODate, parseISODate } from '../utils/dates'
 
 interface DatePickerModalProps {
   readonly visible: boolean
@@ -35,36 +35,15 @@ const MONTH_NAMES = [
 
 const DAY_LABELS = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá']
 
+// Ancho de cada columna: 7 columnas fijas para que la última semana no se descuadre
+const CELL_WIDTH = '14.2857%'
+
 // Helper para parsear string YYYY-MM-DD de forma segura sin sesgo de huso horario
 function parseDateParts(dateStr: string): { year: number; month: number; day: number } {
-  try {
-    const parts = dateStr.split('-').map((p) => parseInt(p, 10))
-    if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
-      return { year: parts[0], month: parts[1] - 1, day: parts[2] }
-    }
-  } catch {
-    // fallback a hoy
-  }
+  const parsed = parseISODate(dateStr)
+  if (parsed) return parsed
   const now = new Date()
   return { year: now.getFullYear(), month: now.getMonth(), day: now.getDate() }
-}
-
-function formatDateString(year: number, month: number, day: number): string {
-  const m = String(month + 1).padStart(2, '0')
-  const d = String(day).padStart(2, '0')
-  return `${year}-${m}-${d}`
-}
-
-function addDaysToToday(days: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() + days)
-  return formatDateString(d.getFullYear(), d.getMonth(), d.getDate())
-}
-
-function addMonthsToToday(months: number): string {
-  const d = new Date()
-  d.setMonth(d.getMonth() + months)
-  return formatDateString(d.getFullYear(), d.getMonth(), d.getDate())
 }
 
 export const DatePickerModal: React.FC<DatePickerModalProps> = ({
@@ -91,13 +70,22 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
     }
   }, [visible, selectedDate])
 
-  const todayStr = useMemo(() => {
-    const now = new Date()
-    return formatDateString(now.getFullYear(), now.getMonth(), now.getDate())
-  }, [])
+  const todayStr = useMemo(() => todayISO(), [])
 
-  // Días del mes actual
-  const calendarGrid = useMemo(() => {
+  // Atajos calculados desde hoy; se deshabilitan si quedan antes de la fecha mínima
+  const shortcuts = useMemo(
+    () =>
+      [
+        { key: 'hoy', label: 'Hoy', dateStr: todayStr, icon: true },
+        { key: '15d', label: '+15 días (Quincena)', dateStr: addDaysISO(todayStr, 15), icon: false },
+        { key: '1m', label: '+1 mes', dateStr: addMonthsISO(todayStr, 1), icon: false },
+        { key: '2m', label: '+2 meses', dateStr: addMonthsISO(todayStr, 2), icon: false },
+      ].map((s) => ({ ...s, disabled: minDate ? s.dateStr < minDate : false })),
+    [todayStr, minDate]
+  )
+
+  // Semanas del mes actual (filas de 7 celdas)
+  const calendarWeeks = useMemo(() => {
     // Primer día de la semana del mes (0 = Domingo, 1 = Lunes, ...)
     const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay()
     // Cantidad total de días en el mes
@@ -112,12 +100,21 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
 
     // Días válidos del mes
     for (let day = 1; day <= daysInMonth; day++) {
-      const dateStr = formatDateString(currentYear, currentMonth, day)
+      const dateStr = toISODate(currentYear, currentMonth, day)
       const isPast = minDate ? dateStr < minDate : false
       cells.push({ day, dateStr, isPast })
     }
 
-    return cells
+    // Completar la última semana con celdas vacías
+    while (cells.length % 7 !== 0) {
+      cells.push({ day: null, dateStr: null, isPast: false })
+    }
+
+    const weeks: (typeof cells)[] = []
+    for (let i = 0; i < cells.length; i += 7) {
+      weeks.push(cells.slice(i, i + 7))
+    }
+    return weeks
   }, [currentYear, currentMonth, minDate])
 
   const handlePrevMonth = () => {
@@ -185,74 +182,30 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
             className="flex-row mb-4"
             contentContainerStyle={{ gap: 8 }}
           >
-            <Pressable
-              onPress={() => handleQuickSelect(todayStr)}
-              className={`px-3 py-1.5 rounded-xl border flex-row items-center gap-1.5 ${
-                tempSelectedDate === todayStr
-                  ? 'bg-[#D34524]/20 border-[#D34524]'
-                  : 'bg-[#181924] border-[#252738]'
-              }`}
-            >
-              <Clock size={12} color={tempSelectedDate === todayStr ? '#FF7854' : '#9CA3AF'} />
-              <Text
-                className={`text-xs font-medium ${
-                  tempSelectedDate === todayStr ? 'text-[#FF7854] font-bold' : 'text-zinc-300'
-                }`}
-              >
-                Hoy
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => handleQuickSelect(addDaysToToday(15))}
-              className={`px-3 py-1.5 rounded-xl border ${
-                tempSelectedDate === addDaysToToday(15)
-                  ? 'bg-[#D34524]/20 border-[#D34524]'
-                  : 'bg-[#181924] border-[#252738]'
-              }`}
-            >
-              <Text
-                className={`text-xs font-medium ${
-                  tempSelectedDate === addDaysToToday(15) ? 'text-[#FF7854] font-bold' : 'text-zinc-300'
-                }`}
-              >
-                +15 días (Quincena)
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => handleQuickSelect(addMonthsToToday(1))}
-              className={`px-3 py-1.5 rounded-xl border ${
-                tempSelectedDate === addMonthsToToday(1)
-                  ? 'bg-[#D34524]/20 border-[#D34524]'
-                  : 'bg-[#181924] border-[#252738]'
-              }`}
-            >
-              <Text
-                className={`text-xs font-medium ${
-                  tempSelectedDate === addMonthsToToday(1) ? 'text-[#FF7854] font-bold' : 'text-zinc-300'
-                }`}
-              >
-                +30 días (1 mes)
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => handleQuickSelect(addMonthsToToday(2))}
-              className={`px-3 py-1.5 rounded-xl border ${
-                tempSelectedDate === addMonthsToToday(2)
-                  ? 'bg-[#D34524]/20 border-[#D34524]'
-                  : 'bg-[#181924] border-[#252738]'
-              }`}
-            >
-              <Text
-                className={`text-xs font-medium ${
-                  tempSelectedDate === addMonthsToToday(2) ? 'text-[#FF7854] font-bold' : 'text-zinc-300'
-                }`}
-              >
-                +60 días (2 meses)
-              </Text>
-            </Pressable>
+            {shortcuts.map((s) => {
+              const isActive = tempSelectedDate === s.dateStr
+              return (
+                <Pressable
+                  key={s.key}
+                  disabled={s.disabled}
+                  onPress={() => handleQuickSelect(s.dateStr)}
+                  className={`px-3 py-1.5 rounded-xl border flex-row items-center gap-1.5 ${
+                    isActive
+                      ? 'bg-[#D34524]/20 border-[#D34524]'
+                      : 'bg-[#181924] border-[#252738]'
+                  } ${s.disabled ? 'opacity-30' : ''}`}
+                >
+                  {s.icon && <Clock size={12} color={isActive ? '#FF7854' : '#9CA3AF'} />}
+                  <Text
+                    className={`text-xs font-medium ${
+                      isActive ? 'text-[#FF7854] font-bold' : 'text-zinc-300'
+                    }`}
+                  >
+                    {s.label}
+                  </Text>
+                </Pressable>
+              )
+            })}
           </ScrollView>
 
           {/* Navegación Mes / Año */}
@@ -281,9 +234,9 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
           </View>
 
           {/* Días de la Semana */}
-          <View className="flex-row justify-between mb-2 px-1">
+          <View className="flex-row mb-2">
             {DAY_LABELS.map((day) => (
-              <View key={day} className="w-9 items-center">
+              <View key={day} style={{ width: CELL_WIDTH }} className="items-center">
                 <Text className="text-zinc-500 text-[11px] font-semibold">
                   {day}
                 </Text>
@@ -291,49 +244,54 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
             ))}
           </View>
 
-          {/* Matriz de Días del Mes */}
-          <View className="flex-row flex-wrap justify-between">
-            {calendarGrid.map((cell, idx) => {
-              if (cell.day === null || !cell.dateStr) {
-                return <View key={`empty-${idx}`} className="w-9 h-9 m-0.5" />
-              }
+          {/* Matriz de Días del Mes (una fila por semana) */}
+          {calendarWeeks.map((week, weekIdx) => (
+            <View key={`week-${weekIdx}`} className="flex-row">
+              {week.map((cell, idx) => {
+                if (cell.day === null || !cell.dateStr) {
+                  return (
+                    <View key={`empty-${weekIdx}-${idx}`} style={{ width: CELL_WIDTH }} className="h-10" />
+                  )
+                }
 
-              const isSelected = cell.dateStr === tempSelectedDate
-              const isToday = cell.dateStr === todayStr
-              const isDisabled = cell.isPast
+                const isSelected = cell.dateStr === tempSelectedDate
+                const isToday = cell.dateStr === todayStr
+                const isDisabled = cell.isPast
 
-              return (
-                <Pressable
-                  key={cell.dateStr}
-                  disabled={isDisabled}
-                  onPress={() => setTempSelectedDate(cell.dateStr!)}
-                  className={`w-9 h-9 m-0.5 rounded-xl items-center justify-center ${
-                    isSelected
-                      ? 'bg-[#D34524] shadow-md shadow-[#D34524]/40'
-                      : isToday
-                      ? 'border border-[#FF7854]/60 bg-[#1A1820]'
-                      : isDisabled
-                      ? 'opacity-30'
-                      : 'active:bg-[#1C1E2B]'
-                  }`}
-                >
-                  <Text
-                    className={`text-xs font-semibold ${
-                      isSelected
-                        ? 'text-white font-bold'
-                        : isToday
-                        ? 'text-[#FF7854]'
-                        : isDisabled
-                        ? 'text-zinc-600'
-                        : 'text-zinc-200'
-                    }`}
-                  >
-                    {cell.day}
-                  </Text>
-                </Pressable>
-              )
-            })}
-          </View>
+                return (
+                  <View key={cell.dateStr} style={{ width: CELL_WIDTH }} className="h-10 items-center justify-center">
+                    <Pressable
+                      disabled={isDisabled}
+                      onPress={() => setTempSelectedDate(cell.dateStr!)}
+                      className={`w-9 h-9 rounded-xl items-center justify-center active:opacity-70 ${
+                        isSelected
+                          ? 'bg-[#D34524] border border-[#FF7854]/60'
+                          : isToday
+                          ? 'border border-[#FF7854]/60 bg-[#1A1820]'
+                          : isDisabled
+                          ? 'opacity-30'
+                          : ''
+                      }`}
+                    >
+                      <Text
+                        className={`text-xs font-semibold ${
+                          isSelected
+                            ? 'text-white font-bold'
+                            : isToday
+                            ? 'text-[#FF7854]'
+                            : isDisabled
+                            ? 'text-zinc-600'
+                            : 'text-zinc-200'
+                        }`}
+                      >
+                        {cell.day}
+                      </Text>
+                    </Pressable>
+                  </View>
+                )
+              })}
+            </View>
+          ))}
 
           {/* Fecha seleccionada previa y Botones de Acción */}
           <View className="mt-4 pt-3 border-t border-[#1C1E2B]">

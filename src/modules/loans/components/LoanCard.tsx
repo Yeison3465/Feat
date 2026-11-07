@@ -5,6 +5,7 @@ import { Calendar, ChevronRight, AlertTriangle, CheckCircle2, ShieldCheck } from
 import { LoanWithDetails } from '../types'
 import { getInitials } from '../../../shared/utils/initials'
 import { formatCOP, formatDateFriendly } from '../../../shared/utils/currency'
+import { formatDateLong } from '../../../shared/utils/dates'
 import Animated, {
   FadeInDown,
   useSharedValue,
@@ -109,6 +110,9 @@ export const LoanCard: React.FC<LoanCardProps> = ({ loan }) => {
             </View>
             <Text className="text-white text-[15px] font-bold tracking-tight" numberOfLines={1}>
               {borrowerName}
+            </Text>
+            <Text className="text-zinc-500 text-[11px] mt-0.5" numberOfLines={1}>
+              Prestado el {formatDateLong(loan.fecha_desembolso)}
             </Text>
           </View>
         </View>

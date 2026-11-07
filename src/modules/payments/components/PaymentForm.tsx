@@ -445,10 +445,10 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
                     <Pressable
                       key={item.id}
                       onPress={() => setMetodoPago(item.id as PaymentMethod)}
-                      className={`flex-1 p-2.5 rounded-2xl border items-center justify-center flex-row gap-1.5 ${
+                      className={`flex-1 p-2.5 rounded-2xl border items-center justify-center flex-row gap-1.5 active:opacity-80 ${
                         isSelected
                           ? 'bg-[#D34524]/20 border-[#D34524]'
-                          : 'bg-[#0A0B10] border-[#232433] active:border-zinc-700'
+                          : 'bg-[#0A0B10] border-[#232433]'
                       }`}
                     >
                       <IconComp
@@ -511,10 +511,8 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
               onPress={handleSubmit}
               disabled={loading || preview.excedeSaldoTotal}
               style={{ height: 52 }}
-              className={`w-full rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#D34524]/20 ${
-                loading || preview.excedeSaldoTotal
-                  ? 'bg-[#D34524]/50'
-                  : 'bg-[#D34524] active:bg-[#E54F2C]'
+              className={`w-full rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#D34524]/20 active:bg-[#E54F2C] ${
+                loading || preview.excedeSaldoTotal ? 'bg-[#D34524]/50' : 'bg-[#D34524]'
               }`}
             >
               {loading ? (

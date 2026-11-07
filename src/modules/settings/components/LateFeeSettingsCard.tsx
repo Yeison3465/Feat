@@ -234,12 +234,12 @@ export const LateFeeSettingsCard: React.FC<LateFeeSettingsCardProps> = ({
       <AnimatedPressable
         onPress={handleSave}
         disabled={loading}
-        className={`w-full h-11 rounded-xl items-center justify-center flex-row ${
+        className={`w-full h-11 rounded-xl items-center justify-center flex-row active:opacity-80 ${
           savedSuccess
             ? 'bg-emerald-600'
             : loading
             ? 'bg-[#C94422]/60'
-            : 'bg-[#D34524] active:bg-[#E54F2C]'
+            : 'bg-[#D34524]'
         }`}
       >
         {loading ? (

@@ -15,6 +15,7 @@ interface PeopleContextType {
   createPerson: (dto: CreatePersonDTO) => Promise<Person>
   updatePerson: (id: string, dto: UpdatePersonDTO) => Promise<Person>
   archivePerson: (id: string, archived?: boolean) => Promise<void>
+  deletePerson: (id: string) => Promise<void>
   getPersonById: (id: string) => Person | undefined
 }
 
@@ -101,6 +102,13 @@ export const PeopleProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     })
   }
 
+  // Eliminar persona (y sus préstamos) y retirarla de memoria.
+  // Quien llame debe recargar los préstamos, que viven en LoansContext.
+  const deletePerson = async (id: string): Promise<void> => {
+    await peopleService.deletePerson(id)
+    setAllPeople((prev) => prev.filter((p) => p.id !== id))
+  }
+
   const getPersonById = useCallback(
     (id: string) => allPeople.find((p) => p.id === id),
     [allPeople]
@@ -119,6 +127,7 @@ export const PeopleProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       createPerson,
       updatePerson,
       archivePerson,
+      deletePerson,
       getPersonById,
     }),
     [filteredPeople, allPeople, loading, refreshing, error, searchQuery, loadPeople, getPersonById]
