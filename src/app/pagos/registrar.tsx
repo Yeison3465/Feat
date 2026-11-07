@@ -23,8 +23,9 @@ export default function RegistrarPagoScreen() {
     try {
       const createdPayment = await paymentsService.createPayment(dto)
       await reload()
-      // Redirigir al comprobante SCR-14 (Confirmación de pago)
-      router.replace(`/pagos/${createdPayment.id}`)
+      // Redirigir al comprobante SCR-14 (Confirmación de pago); el origen hace que
+      // "Volver" lleve al préstamo y nunca regrese a este formulario
+      router.replace(`/pagos/${createdPayment.id}?origen=registro`)
     } finally {
       setSubmitting(false)
     }

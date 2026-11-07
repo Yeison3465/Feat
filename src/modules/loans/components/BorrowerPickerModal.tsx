@@ -121,10 +121,10 @@ export const BorrowerPickerModal: React.FC<BorrowerPickerModalProps> = ({
               return (
                 <Pressable
                   onPress={() => handleSelect(item)}
-                  className={`flex-row items-center justify-between p-3.5 mb-2 rounded-2xl border transition-colors ${
+                  className={`flex-row items-center justify-between p-3.5 mb-2 rounded-2xl border transition-colors active:opacity-80 ${
                     isSelected
                       ? 'bg-[#1C1518] border-[#D34524]'
-                      : 'bg-[#0E0F16] border-[#1C1E2B] active:bg-[#151622]'
+                      : 'bg-[#0E0F16] border-[#1C1E2B]'
                   }`}
                 >
                   <View className="flex-row items-center flex-1 mr-2">

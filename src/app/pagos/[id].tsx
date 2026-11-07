@@ -7,8 +7,9 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  BackHandler,
 } from 'react-native'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   ArrowLeft,
@@ -31,8 +32,10 @@ export default function DetallePagoScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const reducedMotion = useReducedMotion()
-  const { id } = useLocalSearchParams<{ id: string }>()
+  const { id, origen } = useLocalSearchParams<{ id: string; origen?: string }>()
   const { reload: reloadLoans } = useLoans()
+  // Recién registrado: volver debe llevar al préstamo, nunca al formulario de pago
+  const fromRegistration = origen === 'registro'
 
   const [pago, setPago] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
@@ -61,6 +64,30 @@ export default function DetallePagoScreen() {
   useEffect(() => {
     loadPago()
   }, [loadPago])
+
+  const prestamoId: string | undefined = pago?.prestamo_id
+
+  const goToLoan = useCallback(() => {
+    if (prestamoId) {
+      router.dismissTo(`/prestamos/${prestamoId}`)
+    } else {
+      router.back()
+    }
+  }, [prestamoId, router])
+
+  const handleBack = fromRegistration ? goToLoan : () => router.back()
+
+  // Botón atrás físico de Android: tras registrar, también vuelve al préstamo
+  useFocusEffect(
+    useCallback(() => {
+      if (!fromRegistration) return
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        goToLoan()
+        return true
+      })
+      return () => sub.remove()
+    }, [fromRegistration, goToLoan])
+  )
 
   const handleConfirmReverse = async () => {
     if (!pago) return
@@ -102,7 +129,7 @@ export default function DetallePagoScreen() {
       >
         <ErrorMessage message={error || 'Comprobante no encontrado'} onRetry={loadPago} />
         <Pressable
-          onPress={() => router.back()}
+          onPress={handleBack}
           className="mt-4 bg-[#151622] px-4 py-2 rounded-xl border border-[#232433]"
         >
           <Text className="text-[#FF7854] text-xs font-semibold">Volver</Text>
@@ -129,7 +156,7 @@ export default function DetallePagoScreen() {
       <ScrollView
         contentContainerStyle={{
           flexGrow: 1,
-          paddingBottom: getSafeBottomInset(insets.bottom, 24) + 20,
+          paddingBottom: getSafeBottomInset(insets.bottom, 24) + (fromRegistration ? 96 : 20),
         }}
         className="px-6 max-w-md mx-auto w-full"
       >
@@ -139,7 +166,7 @@ export default function DetallePagoScreen() {
           className="flex-row items-center justify-between mt-2 mb-6"
         >
           <Pressable
-            onPress={() => router.back()}
+            onPress={handleBack}
             className="flex-row items-center py-2 pr-4"
             hitSlop={10}
           >
@@ -340,6 +367,35 @@ export default function DetallePagoScreen() {
           </Animated.View>
         )}
       </ScrollView>
+
+      {/* Footer tras registrar: volver al préstamo pagado */}
+      {fromRegistration && (
+        <View
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            paddingBottom: getSafeBottomInset(insets.bottom, 20),
+            paddingTop: 12,
+            paddingHorizontal: 24,
+          }}
+          className="bg-[#060709] border-t border-[#161722]"
+        >
+          <View className="max-w-md mx-auto w-full">
+            <Pressable
+              onPress={goToLoan}
+              style={{ height: 52 }}
+              className="w-full rounded-2xl bg-[#D34524] active:bg-[#E54F2C] items-center justify-center flex-row shadow-lg shadow-[#D34524]/20"
+            >
+              <ArrowLeft size={18} color="#FFFFFF" />
+              <Text className="text-white text-[15px] font-bold tracking-wide ml-2">
+                Volver al préstamo
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
 
       {/* Modal de Confirmación de Reverso (FL-10) */}
       <Modal

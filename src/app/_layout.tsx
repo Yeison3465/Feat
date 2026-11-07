@@ -78,6 +78,14 @@ function NavigationGuard() {
           }}
         />
         <Stack.Screen
+          name="prestamos/editar/[id]"
+          options={{
+            animation: 'slide_from_right',
+            presentation: 'card',
+            contentStyle: { backgroundColor: '#060709' },
+          }}
+        />
+        <Stack.Screen
           name="prestamos/[id]"
           options={{
             animation: 'slide_from_right',

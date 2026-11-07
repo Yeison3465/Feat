@@ -33,6 +33,8 @@ interface LoansContextType {
   setDashboardPeriod: (period: DashboardPeriod) => void
   reload: () => Promise<void>
   createLoan: (dto: CreateLoanDTO) => Promise<LoanWithDetails>
+  updateLoan: (id: string, dto: CreateLoanDTO) => Promise<LoanWithDetails>
+  deleteLoan: (id: string) => Promise<void>
   getLoanById: (id: string) => LoanWithDetails | undefined
 }
 
@@ -131,6 +133,20 @@ export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const created = await loansService.createLoan(dto)
     setAllLoans((prev) => [created, ...prev])
     return created
+  }
+
+  // Editar préstamo y reemplazarlo en memoria
+  const updateLoan = async (id: string, dto: CreateLoanDTO): Promise<LoanWithDetails> => {
+    const updated = await loansService.updateLoan(id, dto)
+    setAllLoans((prev) => prev.map((l) => (l.id === id ? updated : l)))
+    return updated
+  }
+
+  // Eliminar préstamo y retirarlo de memoria (los pagos asociados también desaparecen)
+  const deleteLoan = async (id: string): Promise<void> => {
+    await loansService.deleteLoan(id)
+    setAllLoans((prev) => prev.filter((l) => l.id !== id))
+    setAllPayments((prev) => prev.filter((p) => p.prestamo_id !== id))
   }
 
   const getLoanById = useCallback(
@@ -497,6 +513,8 @@ export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setDashboardPeriod,
       reload: () => loadLoans(true),
       createLoan,
+      updateLoan,
+      deleteLoan,
       getLoanById,
     }),
     [

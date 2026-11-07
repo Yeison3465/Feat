@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import {
   View,
   Text,
@@ -26,8 +26,9 @@ import {
 } from 'lucide-react-native'
 import { usePeople } from '../../people/hooks/usePeople'
 import { useSettings } from '../../settings/hooks/useSettings'
-import { AmortizationType, CreateLoanDTO } from '../types'
-import { formatCOP, formatCOPFull, parseCOP } from '../../../shared/utils/currency'
+import { AmortizationType, CreateLoanDTO, LoanConditionsSnapshot, LoanWithDetails } from '../types'
+import { formatCOP, parseCOP } from '../../../shared/utils/currency'
+import { addMonthsISO, formatDateLong, todayISO } from '../../../shared/utils/dates'
 import { getInitials } from '../../../shared/utils/initials'
 import { getSafeBottomInset } from '../../../shared/utils/responsive'
 import { ErrorMessage } from '../../../shared/components/ErrorMessage'
@@ -39,51 +40,67 @@ interface LoanFormProps {
   readonly onSubmit: (data: CreateLoanDTO) => Promise<void>
   readonly loading: boolean
   readonly preselectedPersonId?: string
+  /** Si se pasa, el formulario edita este préstamo en lugar de crear uno nuevo */
+  readonly initialData?: LoanWithDetails
 }
 
 export const LoanForm: React.FC<LoanFormProps> = ({
   onSubmit,
   loading,
   preselectedPersonId,
+  initialData,
 }) => {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { people } = usePeople()
   const { settings } = useSettings()
+  const isEditing = Boolean(initialData)
+  const initialSnapshot = initialData?.resumen_condiciones as unknown as LoanConditionsSnapshot | undefined
+  // En edición, la persona original conserva la tasa pactada; solo un cambio de persona la recalcula
+  const initialPersonIdRef = useRef(initialData?.persona_id)
 
   // Estados del formulario
-  const [selectedPersonId, setSelectedPersonId] = useState<string>(preselectedPersonId || '')
+  const [selectedPersonId, setSelectedPersonId] = useState<string>(
+    initialData?.persona_id ?? preselectedPersonId ?? ''
+  )
   const [showBorrowerModal, setShowBorrowerModal] = useState<boolean>(false)
   const [showDesembolsoPicker, setShowDesembolsoPicker] = useState<boolean>(false)
   const [showVencimientoPicker, setShowVencimientoPicker] = useState<boolean>(false)
 
-  const [capitalText, setCapitalText] = useState<string>('')
-  const [amortizationType, setAmortizationType] = useState<AmortizationType>('solo_interes')
-  const [numeroCuotasText, setNumeroCuotasText] = useState<string>('1')
-  const [tasaMensualText, setTasaMensualText] = useState<string>(
-    settings?.tasa_mensual_defecto?.toString() ?? '20'
+  const [capitalText, setCapitalText] = useState<string>(
+    initialData ? String(initialData.capital_original) : ''
   )
-  const [isZeroRateOverride, setIsZeroRateOverride] = useState<boolean>(false)
+  const [amortizationType, setAmortizationType] = useState<AmortizationType>(
+    initialData?.tipo_amortizacion ?? 'solo_interes'
+  )
+  const [numeroCuotasText, setNumeroCuotasText] = useState<string>(
+    String(initialSnapshot?.numero_cuotas ?? initialData?.cuotas?.length ?? 1)
+  )
+  const [tasaMensualText, setTasaMensualText] = useState<string>(
+    initialData
+      ? String(initialData.tasa_mensual)
+      : settings?.tasa_mensual_defecto?.toString() ?? '20'
+  )
+  const [isZeroRateOverride, setIsZeroRateOverride] = useState<boolean>(initialData?.tasa_mensual === 0)
   const [notas, setNotas] = useState<string>('')
 
   // Fechas (ISO YYYY-MM-DD)
-  const todayStr = useMemo(() => {
-    const d = new Date()
-    const m = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    return `${d.getFullYear()}-${m}-${day}`
-  }, [])
+  const todayStr = useMemo(() => todayISO(), [])
 
-  const nextMonthStr = useMemo(() => {
-    const d = new Date()
-    d.setMonth(d.getMonth() + 1)
-    const m = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    return `${d.getFullYear()}-${m}-${day}`
-  }, [])
+  const [fechaDesembolso, setFechaDesembolso] = useState<string>(
+    initialData?.fecha_desembolso ?? todayStr
+  )
+  const [fechaPrimerVencimiento, setFechaPrimerVencimiento] = useState<string>(
+    initialData?.fecha_primer_vencimiento ?? addMonthsISO(todayStr, 1)
+  )
 
-  const [fechaDesembolso, setFechaDesembolso] = useState<string>(todayStr)
-  const [fechaPrimerVencimiento, setFechaPrimerVencimiento] = useState<string>(nextMonthStr)
+  // Al elegir la fecha de inicio, el 1.er vencimiento pasa al mismo día del mes siguiente
+  // (ej. 3 dic → 3 ene; 31 ene → 28/29 feb)
+  const handleSelectDesembolso = (date: string) => {
+    setFechaDesembolso(date)
+    setFechaPrimerVencimiento(addMonthsISO(date, 1))
+    if (vencimientoError) setVencimientoError(null)
+  }
 
   // Errores de validación
   const [personError, setPersonError] = useState<string | null>(null)
@@ -99,6 +116,7 @@ export const LoanForm: React.FC<LoanFormProps> = ({
 
   // Sincronizar tasa mensual con la configuración global una vez cargada
   useEffect(() => {
+    if (isEditing) return
     if (settings?.tasa_mensual_defecto !== undefined && !selectedPerson?.exento_interes_ordinario) {
       setTasaMensualText((prev) =>
         prev === '0' || prev === '' ? settings.tasa_mensual_defecto.toString() : prev
@@ -108,6 +126,7 @@ export const LoanForm: React.FC<LoanFormProps> = ({
 
   // Ajustar tasa al cambiar de persona si está exenta de interés
   useEffect(() => {
+    if (isEditing && selectedPerson?.id === initialPersonIdRef.current) return
     if (selectedPerson?.exento_interes_ordinario) {
       setTasaMensualText('0')
       setIsZeroRateOverride(true)
@@ -166,6 +185,9 @@ export const LoanForm: React.FC<LoanFormProps> = ({
     if (!fechaPrimerVencimiento.trim()) {
       setVencimientoError('La fecha de vencimiento es obligatoria.')
       valid = false
+    } else if (fechaPrimerVencimiento < fechaDesembolso) {
+      setVencimientoError('El 1.er vencimiento no puede ser anterior a la fecha del préstamo.')
+      valid = false
     }
 
     return valid
@@ -187,7 +209,7 @@ export const LoanForm: React.FC<LoanFormProps> = ({
       })
       router.back()
     } catch (err: any) {
-      setFormError(err.message || 'Error al crear el préstamo.')
+      setFormError(err.message || (isEditing ? 'Error al guardar el préstamo.' : 'Error al crear el préstamo.'))
     }
   }
 
@@ -216,17 +238,19 @@ export const LoanForm: React.FC<LoanFormProps> = ({
               <Text className="text-zinc-400 text-sm font-medium ml-2">Cancelar</Text>
             </Pressable>
             <Text className="text-zinc-500 text-xs font-mono uppercase tracking-widest">
-              Nuevo Préstamo
+              {isEditing ? 'Editar Préstamo' : 'Nuevo Préstamo'}
             </Text>
           </Animated.View>
 
           {/* Título Principal */}
           <Animated.View entering={FadeInDown.delay(50).duration(280)} className="mb-6">
             <Text className="text-white text-3xl font-bold tracking-tight">
-              Crear préstamo
+              {isEditing ? 'Editar préstamo' : 'Crear préstamo'}
             </Text>
             <Text className="text-zinc-400 text-xs mt-1">
-              Desembolso en pesos colombianos y congelamiento de condiciones
+              {isEditing
+                ? 'Al guardar se regenera el calendario de cuotas con las nuevas condiciones'
+                : 'Desembolso en pesos colombianos y congelamiento de condiciones'}
             </Text>
           </Animated.View>
 
@@ -261,10 +285,10 @@ export const LoanForm: React.FC<LoanFormProps> = ({
               ) : (
                 <Pressable
                   onPress={() => setShowBorrowerModal(true)}
-                  className={`p-3.5 rounded-2xl border flex-row items-center justify-between transition-colors ${
+                  className={`p-3.5 rounded-2xl border flex-row items-center justify-between transition-colors active:opacity-80 ${
                     personError
                       ? 'border-[#FB3758] bg-[#170E12]'
-                      : 'border-[#232433] bg-[#0A0B10] active:bg-[#141520]'
+                      : 'border-[#232433] bg-[#0A0B10]'
                   }`}
                 >
                   {selectedPerson ? (
@@ -349,7 +373,12 @@ export const LoanForm: React.FC<LoanFormProps> = ({
                   onChangeText={(val) => {
                     const clean = val.replace(/[^0-9]/g, '')
                     setCapitalText(clean)
-                    if (capitalError) setCapitalError(null)
+                    // Avisar en vivo si el monto queda en 0 tras haber escrito algo
+                    setCapitalError(
+                      clean !== '' && parseCOP(clean) <= 0
+                        ? 'Ingresa un monto de capital mayor a 0.'
+                        : null
+                    )
                   }}
                   placeholder="0"
                   placeholderTextColor="#4B5563"
@@ -394,10 +423,10 @@ export const LoanForm: React.FC<LoanFormProps> = ({
                     <Pressable
                       key={item.id}
                       onPress={() => setAmortizationType(item.id as AmortizationType)}
-                      className={`flex-1 p-2.5 rounded-2xl border items-center justify-center ${
+                      className={`flex-1 p-2.5 rounded-2xl border items-center justify-center active:opacity-80 ${
                         isSelected
                           ? 'bg-[#D34524]/20 border-[#D34524]'
-                          : 'bg-[#0A0B10] border-[#232433] active:border-zinc-700'
+                          : 'bg-[#0A0B10] border-[#232433]'
                       }`}
                     >
                       <Text
@@ -546,12 +575,12 @@ export const LoanForm: React.FC<LoanFormProps> = ({
                   className="flex-1 bg-[#0A0B10] border border-[#232433] rounded-2xl p-3 active:border-zinc-700"
                 >
                   <Text className="text-zinc-500 text-[11px] mb-1 font-medium">
-                    Desembolso
+                    Fecha del préstamo
                   </Text>
                   <View className="flex-row items-center gap-2">
                     <Calendar size={14} color="#FF7854" />
                     <Text className="text-white text-xs font-bold font-mono">
-                      {fechaDesembolso}
+                      {formatDateLong(fechaDesembolso)}
                     </Text>
                   </View>
                   <Text className="text-zinc-600 text-[10px] mt-1">Toca para cambiar</Text>
@@ -570,12 +599,17 @@ export const LoanForm: React.FC<LoanFormProps> = ({
                   <View className="flex-row items-center gap-2">
                     <Calendar size={14} color={vencimientoError ? '#FB3758' : '#FF7854'} />
                     <Text className="text-white text-xs font-bold font-mono">
-                      {fechaPrimerVencimiento}
+                      {formatDateLong(fechaPrimerVencimiento)}
                     </Text>
                   </View>
                   <Text className="text-zinc-600 text-[10px] mt-1">Toca para cambiar</Text>
                 </Pressable>
               </View>
+
+              <Text className="text-zinc-500 text-[11px] mt-2 ml-1 leading-4">
+                Al cambiar la fecha del préstamo, el 1.er vencimiento se ajusta al mismo día del mes
+                siguiente. Puedes modificarlo después si lo necesitas.
+              </Text>
 
               {vencimientoError && (
                 <Text className="text-[#FB3758] text-xs mt-1.5 ml-1">{vencimientoError}</Text>
@@ -650,10 +684,10 @@ export const LoanForm: React.FC<LoanFormProps> = ({
           <View className="max-w-md mx-auto w-full">
             <Pressable
               onPress={handleSubmit}
-              disabled={loading}
-              style={{ height: 52 }}
-              className={`w-full rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#D34524]/20 ${
-                loading ? 'bg-[#D34524]/60' : 'bg-[#D34524] active:bg-[#E54F2C]'
+              disabled={loading || capitalNum <= 0}
+              style={{ height: 52, opacity: !loading && capitalNum <= 0 ? 0.45 : 1 }}
+              className={`w-full rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#D34524]/20 active:bg-[#E54F2C] ${
+                loading ? 'bg-[#D34524]/60' : 'bg-[#D34524]'
               }`}
             >
               {loading ? (
@@ -662,7 +696,7 @@ export const LoanForm: React.FC<LoanFormProps> = ({
                 <View className="flex-row items-center justify-center gap-2">
                   <Check size={18} color="#FFFFFF" strokeWidth={2.5} />
                   <Text className="text-white text-[15px] font-bold tracking-wide">
-                    Confirmar y crear préstamo
+                    {isEditing ? 'Guardar cambios' : 'Confirmar y crear préstamo'}
                   </Text>
                 </View>
               )}
@@ -686,8 +720,8 @@ export const LoanForm: React.FC<LoanFormProps> = ({
           visible={showDesembolsoPicker}
           onClose={() => setShowDesembolsoPicker(false)}
           selectedDate={fechaDesembolso}
-          onSelectDate={setFechaDesembolso}
-          title="Fecha de desembolso"
+          onSelectDate={handleSelectDesembolso}
+          title="Fecha del préstamo"
         />
 
         <DatePickerModal

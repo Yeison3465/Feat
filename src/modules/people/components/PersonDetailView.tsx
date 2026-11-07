@@ -11,6 +11,7 @@ import {
   ShieldAlert,
   Archive,
   CreditCard,
+  Trash2,
 } from 'lucide-react-native'
 import { Person } from '../types'
 import { getInitials } from '../../../shared/utils/initials'
@@ -23,9 +24,15 @@ interface PersonDetailViewProps {
   readonly person: Person
   readonly onEdit: () => void
   readonly onArchive?: () => void
+  readonly onDelete?: () => void
 }
 
-export const PersonDetailView: React.FC<PersonDetailViewProps> = ({ person, onEdit, onArchive }) => {
+export const PersonDetailView: React.FC<PersonDetailViewProps> = ({
+  person,
+  onEdit,
+  onArchive,
+  onDelete,
+}) => {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { allLoans } = useLoans()
@@ -195,6 +202,20 @@ export const PersonDetailView: React.FC<PersonDetailViewProps> = ({ person, onEd
               <Archive size={16} color="#FB3758" />
               <Text className="text-[#FB3758] text-xs font-semibold ml-2">
                 {person.archivado ? 'Reactivar persona' : 'Archivar prestatario'}
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
+        {onDelete && (
+          <View className="mt-2.5">
+            <Pressable
+              onPress={onDelete}
+              className="flex-row items-center justify-center p-3.5 rounded-2xl border border-red-900/50 bg-red-950/30 active:bg-red-950/50"
+            >
+              <Trash2 size={16} color="#FB3758" />
+              <Text className="text-[#FB3758] text-xs font-semibold ml-2">
+                Eliminar persona definitivamente
               </Text>
             </Pressable>
           </View>

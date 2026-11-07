@@ -1,5 +1,6 @@
 import { supabase } from '../../../lib/supabase'
 import { Database } from '../../../shared/types/database.types'
+import { loansService } from '../../loans/services/loans.service'
 import { CreatePersonDTO, Person, UpdatePersonDTO } from '../types'
 
 type PersonUpdate = Database['public']['Tables']['personas']['Update']
@@ -107,5 +108,35 @@ export const peopleService = {
     }
 
     return data
+  },
+
+  /**
+   * Elimina una persona junto con todos sus préstamos (y los pagos, cuotas y
+   * movimientos de esos préstamos). Irreversible.
+   */
+  async deletePerson(id: string): Promise<void> {
+    const { data: prestamos, error: loansErr } = await supabase
+      .from('prestamos')
+      .select('id')
+      .eq('persona_id', id)
+
+    if (loansErr) {
+      throw new Error(`Error al consultar préstamos de la persona: ${loansErr.message}`)
+    }
+
+    for (const prestamo of prestamos ?? []) {
+      await loansService.deleteLoan(prestamo.id)
+    }
+
+    const { data, error } = await supabase.from('personas').delete().eq('id', id).select('id')
+
+    if (error) {
+      throw new Error(`Error al eliminar persona: ${error.message}`)
+    }
+    if (!data || data.length === 0) {
+      throw new Error(
+        'No se pudo eliminar la persona. Verifica que la base de datos permita eliminar personas (política RLS de DELETE).'
+      )
+    }
   },
 }
