@@ -22,3 +22,29 @@ expo-env.d.ts
 # Documentation PDFs
 *.pdf
 docs/*.pdf
+
+# graphify
+graphify-out/
+.claude/
+CLAUDE.md
+
+# emilkowalski skills
+.agents/skills/animate/
+.agents/skills/animate-expo/
+.agents/skills/animation-performance/
+.agents/skills/animation-vocabulary/
+.agents/skills/apple-design/
+.agents/skills/ask-sonner/
+.agents/skills/break-ui/
+.agents/skills/choreograph/
+.agents/skills/emil-design-eng/
+.agents/skills/find-animation-opportunities/
+.agents/skills/improve-animations/
+.agents/skills/mobile-native/
+.agents/skills/pick-ui-library/
+.agents/skills/prototype/
+.agents/skills/remove-animations/
+.agents/skills/review-animations/
+.agents/skills/write-swift/
+.agents/skills/design-taste-frontend/
+skills-lock.json
