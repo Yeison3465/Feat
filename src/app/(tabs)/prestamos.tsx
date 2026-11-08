@@ -85,6 +85,17 @@ export default function PrestamosScreen() {
   const switchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Al cambiar de filtro (Todos / Activos / En mora / Completados) las tarjetas nuevas entran con animación
+  const [filterKey, setFilterKey] = useState(0)
+  const changeFilter = (next: LoanStatus | 'todos') => {
+    if (next === estadoFilter) return
+    setEstadoFilter(next)
+    setFilterKey((k) => k + 1)
+    setAnimateIn(true)
+    if (settleTimer.current) clearTimeout(settleTimer.current)
+    settleTimer.current = setTimeout(() => setAnimateIn(false), 2500)
+  }
+
   const changeView = (next: 'lista' | 'carrusel') => {
     if (next === view) return
     setView(next)
@@ -235,7 +246,7 @@ export default function PrestamosScreen() {
             return (
               <AnimatedPressable
                 key={opt.id}
-                onPress={() => setEstadoFilter(opt.id)}
+                onPress={() => changeFilter(opt.id)}
                 haptic="selection"
                 accessibilityRole="button"
                 accessibilityState={{ selected: on }}
@@ -285,9 +296,9 @@ export default function PrestamosScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.app }} edges={['top']}>
       <FlatList
         data={showCarousel || loading || error || switching ? [] : loans}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => `${filterKey}-${item.id}`}
         renderItem={({ item, index }) =>
-          animateIn && index < 6 && !reduced ? (
+          animateIn && index < 6 ? (
             <Animated.View entering={screenEnter(index, reduced)}>
               <LoanCard loan={item} />
             </Animated.View>
