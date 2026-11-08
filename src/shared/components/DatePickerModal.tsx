@@ -164,7 +164,7 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
                 accessibilityRole="button"
                 accessibilityState={{ selected: isActive, disabled: s.disabled }}
                 style={{
-                  height: 40,
+                  height: 44,
                   paddingHorizontal: 14,
                   borderRadius: 999,
                   alignItems: 'center',
@@ -231,7 +231,7 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
           <View key={`week-${weekIdx}`} style={{ flexDirection: 'row' }}>
             {week.map((cell, idx) => {
               if (cell.day === null || !cell.dateStr) {
-                return <View key={`empty-${weekIdx}-${idx}`} style={{ width: CELL_WIDTH, height: 40 }} />
+                return <View key={`empty-${weekIdx}-${idx}`} style={{ width: CELL_WIDTH, height: 44 }} />
               }
 
               const isSelected = cell.dateStr === tempSelectedDate
@@ -239,7 +239,7 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
               const isDisabled = cell.isPast
 
               return (
-                <View key={cell.dateStr} style={{ width: CELL_WIDTH, height: 40, alignItems: 'center', justifyContent: 'center' }}>
+                <View key={cell.dateStr} style={{ width: CELL_WIDTH, height: 44, alignItems: 'center', justifyContent: 'center' }}>
                   <AnimatedPressable
                     disabled={isDisabled}
                     onPress={() => setTempSelectedDate(cell.dateStr!)}
@@ -247,9 +247,9 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
                     accessibilityLabel={cell.dateStr}
                     accessibilityState={{ selected: isSelected, disabled: isDisabled }}
                     style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 20,
+                      width: 44,
+                      height: 44,
+                      borderRadius: 22,
                       alignItems: 'center',
                       justifyContent: 'center',
                       backgroundColor: isSelected ? colors.warm : 'transparent',

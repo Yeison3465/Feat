@@ -267,7 +267,7 @@ export const AreaChartCard: React.FC<AreaChartCardProps> = ({ chartData, totalRe
                 accessibilityState={{ selected: on }}
                 style={{
                   width: 44,
-                  height: 38,
+                  height: 44,
                   borderRadius: 999,
                   alignItems: 'center',
                   justifyContent: 'center',

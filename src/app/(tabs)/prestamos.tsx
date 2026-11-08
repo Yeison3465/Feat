@@ -240,7 +240,7 @@ export default function PrestamosScreen() {
                 accessibilityRole="button"
                 accessibilityState={{ selected: on }}
                 style={{
-                  height: 40,
+                  height: 44,
                   paddingHorizontal: 16,
                   borderRadius: 999,
                   alignItems: 'center',

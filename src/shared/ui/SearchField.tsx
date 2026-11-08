@@ -49,7 +49,7 @@ export const SearchField: React.FC<SearchFieldProps> = ({ value, onChangeText, p
           onPress={() => onChangeText('')}
           accessibilityRole="button"
           accessibilityLabel="Limpiar búsqueda"
-          style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card2, alignItems: 'center', justifyContent: 'center' }}
+          style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.card2, alignItems: 'center', justifyContent: 'center' }}
         >
           <X size={16} color={colors.warm} />
         </AnimatedPressable>
