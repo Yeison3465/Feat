@@ -3,9 +3,11 @@ import { Pressable, PressableProps, StyleProp, ViewStyle } from 'react-native'
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
+  withTiming,
   useReducedMotion,
 } from 'react-native-reanimated'
+import { DURATION, EASE_OUT, PRESS_SCALE } from '../motion'
+import { haptic, HapticKind } from '../haptics'
 
 interface AnimatedPressableProps extends PressableProps {
   readonly children: React.ReactNode
@@ -13,6 +15,8 @@ interface AnimatedPressableProps extends PressableProps {
   readonly containerClassName?: string
   readonly style?: StyleProp<ViewStyle>
   readonly scaleTo?: number
+  // Háptico opcional al confirmar la pulsación (no al presionar)
+  readonly haptic?: HapticKind
 }
 
 export const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
@@ -20,9 +24,11 @@ export const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
   className,
   containerClassName,
   style,
-  scaleTo = 0.97,
+  scaleTo = PRESS_SCALE,
+  haptic: hapticKind,
   onPressIn,
   onPressOut,
+  onPress,
   disabled,
   ...rest
 }) => {
@@ -33,18 +39,24 @@ export const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
     transform: [{ scale: scale.value }],
   }))
 
+  // La respuesta visual ocurre al presionar (no al soltar) y es instantánea
   const handlePressIn: PressableProps['onPressIn'] = (e) => {
     if (!reducedMotion && !disabled) {
-      scale.value = withSpring(scaleTo, { damping: 16, stiffness: 300 })
+      scale.value = withTiming(scaleTo, { duration: DURATION.press, easing: EASE_OUT })
     }
     onPressIn?.(e)
   }
 
   const handlePressOut: PressableProps['onPressOut'] = (e) => {
     if (!reducedMotion) {
-      scale.value = withSpring(1, { damping: 16, stiffness: 300 })
+      scale.value = withTiming(1, { duration: DURATION.press, easing: EASE_OUT })
     }
     onPressOut?.(e)
+  }
+
+  const handlePress: PressableProps['onPress'] = (e) => {
+    if (hapticKind) haptic(hapticKind)
+    onPress?.(e)
   }
 
   return (
@@ -52,6 +64,7 @@ export const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
       <Pressable
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
+        onPress={handlePress}
         disabled={disabled}
         style={style}
         className={className}

@@ -7,7 +7,7 @@
     "scheme": "prestamos",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#060709",
+    "backgroundColor": "#0A0A0B",
     "ios": {
       "supportsTablet": true
     },
@@ -16,7 +16,7 @@
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#060709"
+        "backgroundColor": "#0A0A0B"
       }
     },
     "web": {
@@ -32,9 +32,10 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#060709"
+          "backgroundColor": "#0A0A0B"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
