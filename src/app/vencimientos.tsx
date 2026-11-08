@@ -3,7 +3,7 @@ import { View, Text, FlatList, RefreshControl, ScrollView, Linking } from 'react
 import Animated, { useReducedMotion } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { ArrowLeft, HandCoins, ChevronRight, Clock, Phone, ShieldCheck } from 'lucide-react-native'
+import { ArrowLeft, ChevronRight, Clock, Phone, ShieldCheck } from 'lucide-react-native'
 import { useLoans } from '../modules/loans/hooks/useLoans'
 import { DueHorizonFilter, ObligationItem } from '../modules/loans/types'
 import { formatCOP, formatDateFriendly } from '../shared/utils/currency'
@@ -139,24 +139,34 @@ export default function VencimientosScreen() {
             Cuota #{item.installment.numero_cuota} · Vence {formatDateFriendly(item.installment.fecha_vencimiento)}
           </Text>
 
-          {/* Desglose financiero */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, padding: 14, borderRadius: 20, backgroundColor: colors.card2 }}>
-            <View style={{ gap: 4, flexShrink: 1 }}>
+          {/* Desglose financiero: el exigible ocupa su propia fila para que cifras grandes no se partan */}
+          <View style={{ gap: 14, padding: 14, borderRadius: 20, backgroundColor: colors.card2 }}>
+            <View style={{ gap: 4 }}>
               <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 12 }}>Exigible en cuota</Text>
-              <Text style={{ color: isHot ? colors.dangerSoft : colors.warm, fontFamily: fonts.semibold, fontSize: 20, letterSpacing: -0.6 }}>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.6}
+                style={{ color: isHot ? colors.dangerSoft : colors.warm, fontFamily: fonts.semibold, fontSize: 26, lineHeight: 30, letterSpacing: -0.8 }}
+              >
                 {formatCOP(item.saldoExigible)}
               </Text>
             </View>
-            <View style={{ flexDirection: 'row', gap: 16, alignItems: 'flex-end' }}>
-              {item.moraPendiente > 0 && (
-                <View style={{ gap: 4, alignItems: 'flex-end' }}>
+            <View style={{ height: 1, backgroundColor: colors.line }} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
+              {item.moraPendiente > 0 ? (
+                <View style={{ gap: 4, flex: 1 }}>
                   <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 12 }}>Mora incluida</Text>
-                  <Text style={{ color: colors.dangerSoft, fontFamily: fonts.semibold, fontSize: 13 }}>{formatCOP(item.moraPendiente)}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit style={{ color: colors.dangerSoft, fontFamily: fonts.semibold, fontSize: 14 }}>
+                    {formatCOP(item.moraPendiente)}
+                  </Text>
                 </View>
-              )}
-              <View style={{ gap: 4, alignItems: 'flex-end' }}>
+              ) : null}
+              <View style={{ gap: 4, flex: 1, alignItems: item.moraPendiente > 0 ? 'flex-end' : 'flex-start' }}>
                 <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 12 }}>Capital crédito</Text>
-                <Text style={{ color: '#E4E4E8', fontFamily: fonts.semibold, fontSize: 13 }}>{formatCOP(item.capitalPendientePrestamo)}</Text>
+                <Text numberOfLines={1} adjustsFontSizeToFit style={{ color: '#E4E4E8', fontFamily: fonts.semibold, fontSize: 14 }}>
+                  {formatCOP(item.capitalPendientePrestamo)}
+                </Text>
               </View>
             </View>
           </View>
@@ -178,18 +188,6 @@ export default function VencimientosScreen() {
               size="sm"
               onPress={() => router.push(`/prestamos/${item.loan.id}`)}
               iconAfter={<ChevronRight size={14} color={colors.warm} />}
-              style={{ flex: 1 }}
-            />
-            <Button
-              label="Cobrar"
-              size="sm"
-              onPress={() =>
-                router.push({
-                  pathname: '/pagos/registrar',
-                  params: { prestamoId: item.loan.id },
-                })
-              }
-              icon={<HandCoins size={14} color="#000000" />}
               style={{ flex: 1 }}
             />
           </View>
