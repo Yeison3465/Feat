@@ -11,6 +11,7 @@ import { MetricCard } from '../../../shared/ui/MetricCard'
 import { ProgressBar } from '../../../shared/ui/ProgressBar'
 import { Segmented } from '../../../shared/ui/Segmented'
 import { colors, fonts } from '../../../shared/theme/tokens'
+import { DURATION } from '../../../shared/motion'
 
 interface DashboardMetricsGridProps {
   readonly metrics: LoanSummaryMetrics
@@ -64,7 +65,7 @@ export const DashboardMetricsGrid: React.FC<DashboardMetricsGridProps> = ({ metr
 
       {viewMode === 'general' ? (
         /* VISTA GENERAL: 4 tarjetas blancas */
-        <Animated.View key="metrics-general" entering={FadeIn.duration(200)} style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+        <Animated.View key="metrics-general" entering={FadeIn.duration(DURATION.control)} style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
           <Cell>
             <MetricCard
               label="Ganancia cobrada"
@@ -111,7 +112,7 @@ export const DashboardMetricsGrid: React.FC<DashboardMetricsGridProps> = ({ metr
         </Animated.View>
       ) : (
         /* VISTA DETALLADA: indicadores avanzados */
-        <Animated.View key="metrics-detallado" entering={FadeIn.duration(200)} style={{ gap: 12 }}>
+        <Animated.View key="metrics-detallado" entering={FadeIn.duration(DURATION.control)} style={{ gap: 12 }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
             <Cell>
               <MetricCard

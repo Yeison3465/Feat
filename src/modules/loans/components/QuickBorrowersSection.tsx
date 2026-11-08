@@ -11,7 +11,7 @@ import { Avatar } from '../../../shared/ui/Avatar'
 import { Button } from '../../../shared/ui/Button'
 import { Card } from '../../../shared/ui/Card'
 import { Chip } from '../../../shared/ui/Chip'
-import { staggerDelay, EASE_OUT } from '../../../shared/motion'
+import { staggerDelay, DURATION, EASE_OUT } from '../../../shared/motion'
 import { colors } from '../../../shared/theme/tokens'
 
 interface QuickBorrowersSectionProps {
@@ -67,7 +67,7 @@ export const QuickBorrowersSection: React.FC<QuickBorrowersSectionProps> = ({ bo
           {borrowers.map((b, index) => (
             <Animated.View
               key={b.personaId}
-              entering={reduced ? undefined : FadeInRight.delay(staggerDelay(index)).duration(380).easing(EASE_OUT)}
+              entering={reduced ? undefined : FadeInRight.delay(staggerDelay(index)).duration(DURATION.screenIn - 120).easing(EASE_OUT)}
               style={{ width: 196 }}
             >
               <AnimatedPressable

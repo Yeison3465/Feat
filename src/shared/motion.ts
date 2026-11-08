@@ -11,19 +11,19 @@ export const EASE_SHEET = Easing.bezier(0.32, 0.72, 0, 1)
 // Duraciones (ms)
 export const DURATION = {
   press: 120,
-  control: 200,
-  accordion: 280,
-  dialogIn: 240,
-  dialogOut: 160,
-  sheetIn: 420,
-  sheetOut: 280,
-  snackIn: 340,
-  snackOut: 200,
-  screenIn: 460,
-  stagger: 40,
-  staggerMax: 320,
-  countUp: 700,
-  fade: 200,
+  control: 240,
+  accordion: 340,
+  dialogIn: 300,
+  dialogOut: 200,
+  sheetIn: 520,
+  sheetOut: 340,
+  snackIn: 420,
+  snackOut: 240,
+  screenIn: 600,
+  stagger: 60,
+  staggerMax: 420,
+  countUp: 1000,
+  fade: 240,
 } as const
 
 // Resortes (solo cuando hay gesto con dedo)

@@ -18,7 +18,7 @@ import { AnimatedPressable } from '../../../shared/components/AnimatedPressable'
 import { AppText } from '../../../shared/ui/AppText'
 import { Card } from '../../../shared/ui/Card'
 import { colors, fonts } from '../../../shared/theme/tokens'
-import { EASE_OUT } from '../../../shared/motion'
+import { DURATION, EASE_OUT } from '../../../shared/motion'
 import { haptic } from '../../../shared/haptics'
 
 interface AreaChartCardProps {
@@ -100,7 +100,7 @@ function buildMonotoneCubicPath(points: { x: number; y: number }[]): string {
 
 const AnimatedRect = Animated.createAnimatedComponent(Rect)
 
-// Barra que crece desde la base (560 ms, ease-out) con 50 ms entre barras
+// Barra que crece desde la base (700 ms, ease-out) con 60 ms entre barras
 const GrowingBar: React.FC<{
   readonly x: number
   readonly width: number
@@ -119,7 +119,7 @@ const GrowingBar: React.FC<{
       return
     }
     grow.value = 0
-    grow.value = withDelay(120 + index * 50, withTiming(1, { duration: 560, easing: EASE_OUT }))
+    grow.value = withDelay(160 + index * 60, withTiming(1, { duration: 700, easing: EASE_OUT }))
   }, [replayKey, index, reduced, grow])
 
   const animatedProps = useAnimatedProps(() => {
@@ -321,7 +321,7 @@ export const AreaChartCard: React.FC<AreaChartCardProps> = ({ chartData, totalRe
 
       {/* Gráfica: toca o arrastra para explorar cada periodo */}
       <GestureDetector gesture={gesture}>
-        <Animated.View key={displayMode} entering={FadeIn.duration(200)} onLayout={handleLayout} style={{ height: chartHeight }}>
+        <Animated.View key={displayMode} entering={FadeIn.duration(DURATION.control)} onLayout={handleLayout} style={{ height: chartHeight }}>
           <Svg width={innerWidth} height={chartHeight}>
             <Defs>
               <LinearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">

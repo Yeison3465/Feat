@@ -22,10 +22,10 @@ export const SplashScreen: React.FC = () => {
   // Tamaño real del contenedor: la foto se dibuja con medidas explícitas para que cubra toda la pantalla
   const [size, setSize] = useState({ w: 0, h: 0 })
 
-  // Pulso del logo: escala 1 → 1,05 → 1 en 2,4 s, en bucle. Sin pulso con movimiento reducido.
+  // Pulso del logo: escala 1 → 1,05 → 1 en 2,8 s, en bucle. Sin pulso con movimiento reducido.
   useEffect(() => {
     if (!reducedMotion) {
-      pulse.value = withRepeat(withTiming(1.05, { duration: 1200, easing: EASE_IN_OUT }), -1, true)
+      pulse.value = withRepeat(withTiming(1.05, { duration: 1400, easing: EASE_IN_OUT }), -1, true)
     }
   }, [pulse, reducedMotion])
 
@@ -67,7 +67,7 @@ export const SplashScreen: React.FC = () => {
 
         {/* Centro: logo, marca y estado */}
         <Animated.View
-          entering={reducedMotion ? undefined : FadeIn.duration(400)}
+          entering={reducedMotion ? undefined : FadeIn.duration(520)}
           style={{ alignItems: 'center', gap: 24, alignSelf: 'stretch' }}
         >
           <View
