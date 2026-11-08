@@ -1,15 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Switch,
-} from 'react-native'
+import { View, Text, KeyboardAvoidingView, Platform, ScrollView } from 'react-native'
+import Animated, { useReducedMotion } from 'react-native-reanimated'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
@@ -29,12 +20,22 @@ import { useSettings } from '../../settings/hooks/useSettings'
 import { AmortizationType, CreateLoanDTO, LoanConditionsSnapshot, LoanWithDetails } from '../types'
 import { formatCOP, parseCOP } from '../../../shared/utils/currency'
 import { addMonthsISO, formatDateLong, todayISO } from '../../../shared/utils/dates'
-import { getInitials } from '../../../shared/utils/initials'
 import { getSafeBottomInset } from '../../../shared/utils/responsive'
 import { ErrorMessage } from '../../../shared/components/ErrorMessage'
 import { DatePickerModal } from '../../../shared/components/DatePickerModal'
+import { AnimatedPressable } from '../../../shared/components/AnimatedPressable'
+import { Accordion, AccordionChevron } from '../../../shared/ui/Accordion'
+import { AppText } from '../../../shared/ui/AppText'
+import { Avatar } from '../../../shared/ui/Avatar'
+import { Button } from '../../../shared/ui/Button'
+import { Card } from '../../../shared/ui/Card'
+import { Chip } from '../../../shared/ui/Chip'
+import { Field } from '../../../shared/ui/Field'
+import { Toggle } from '../../../shared/ui/Toggle'
+import { screenEnter } from '../../../shared/motion'
+import { haptic } from '../../../shared/haptics'
+import { colors, fonts } from '../../../shared/theme/tokens'
 import { BorrowerPickerModal } from './BorrowerPickerModal'
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated'
 
 interface LoanFormProps {
   readonly onSubmit: (data: CreateLoanDTO) => Promise<void>
@@ -44,6 +45,24 @@ interface LoanFormProps {
   readonly initialData?: LoanWithDetails
 }
 
+const MODALITIES: ReadonlyArray<{ id: AmortizationType; label: string; desc: string }> = [
+  { id: 'solo_interes', label: 'Solo interés', desc: 'Réditos mensuales' },
+  { id: 'pago_unico', label: 'Pago único', desc: 'Todo al vencer' },
+  { id: 'cuotas_fijas', label: 'Cuotas fijas', desc: 'Amortización fija' },
+]
+
+// Etiqueta de sección (misma jerarquía que las etiquetas de Field)
+const Label: React.FC<{ readonly children: React.ReactNode }> = ({ children }) => (
+  <Text style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 14 }}>{children}</Text>
+)
+
+const FieldError: React.FC<{ readonly message: string }> = ({ message }) => (
+  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+    <AlertCircle size={13} color={colors.dangerSoft} style={{ marginTop: 2 }} />
+    <Text style={{ flex: 1, color: colors.dangerSoft, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16 }}>{message}</Text>
+  </View>
+)
+
 export const LoanForm: React.FC<LoanFormProps> = ({
   onSubmit,
   loading,
@@ -52,6 +71,7 @@ export const LoanForm: React.FC<LoanFormProps> = ({
 }) => {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const reduced = useReducedMotion()
   const { people } = usePeople()
   const { settings } = useSettings()
   const isEditing = Boolean(initialData)
@@ -66,6 +86,16 @@ export const LoanForm: React.FC<LoanFormProps> = ({
   const [showBorrowerModal, setShowBorrowerModal] = useState<boolean>(false)
   const [showDesembolsoPicker, setShowDesembolsoPicker] = useState<boolean>(false)
   const [showVencimientoPicker, setShowVencimientoPicker] = useState<boolean>(false)
+  const [explainOpen, setExplainOpen] = useState<boolean>(false)
+  const [done, setDone] = useState<boolean>(false)
+  const backTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(
+    () => () => {
+      if (backTimer.current) clearTimeout(backTimer.current)
+    },
+    []
+  )
 
   const [capitalText, setCapitalText] = useState<string>(
     initialData ? String(initialData.capital_original) : ''
@@ -207,504 +237,467 @@ export const LoanForm: React.FC<LoanFormProps> = ({
         fecha_primer_vencimiento: fechaPrimerVencimiento,
         notas: notas.trim() || null,
       })
-      router.back()
+      // Confirmación breve (check verde) antes de volver
+      haptic('success')
+      setDone(true)
+      backTimer.current = setTimeout(() => router.back(), 900)
     } catch (err: any) {
       setFormError(err.message || (isEditing ? 'Error al guardar el préstamo.' : 'Error al crear el préstamo.'))
     }
   }
 
+  const explanation =
+    amortizationType === 'solo_interes'
+      ? {
+          title: 'Solo interés (Réditos periódicos):',
+          body: 'El prestatario paga periódicamente solo el rendimiento generado. El capital original se mantiene intacto y se devuelve al final del préstamo o mediante abonos directos a capital.',
+        }
+      : amortizationType === 'pago_unico'
+        ? {
+            title: 'Pago único (Todo al vencimiento):',
+            body: 'Sin cuotas intermedias. El prestatario devuelve la totalidad del capital prestado más los intereses acumulados en un único pago al llegar la fecha de vencimiento.',
+          }
+        : {
+            title: 'Cuotas fijas (Amortización estructurada):',
+            body: `El crédito se divide en ${numeroCuotasNum} cuotas iguales periódicas. Cada cuota abonará una parte del capital prestado y otra parte de los intereses devengados.`,
+          }
+
+  const canSubmit = capitalNum > 0
+
   return (
-    <View style={{ paddingTop: Math.max(insets.top, 12) }} className="flex-1 bg-[#060709]">
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        className="flex-1"
-      >
+    <View style={{ flex: 1, backgroundColor: colors.app, paddingTop: Math.max(insets.top, 12) }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
+          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, gap: 24 }}
           keyboardShouldPersistTaps="handled"
-          className="px-6 max-w-md mx-auto w-full"
+          showsVerticalScrollIndicator={false}
         >
           {/* Cabecera con Cancelar */}
           <Animated.View
-            entering={FadeInDown.duration(260)}
-            className="flex-row items-center justify-between mt-2 mb-6"
+            entering={screenEnter(0, reduced)}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
           >
-            <Pressable
+            <Button
+              label="Cancelar"
+              variant="ghost"
+              size="sm"
               onPress={() => router.back()}
-              className="flex-row items-center py-2 pr-4"
-              hitSlop={10}
-            >
-              <ArrowLeft size={20} color="#9CA3AF" />
-              <Text className="text-zinc-400 text-sm font-medium ml-2">Cancelar</Text>
-            </Pressable>
-            <Text className="text-zinc-500 text-xs font-mono uppercase tracking-widest">
-              {isEditing ? 'Editar Préstamo' : 'Nuevo Préstamo'}
-            </Text>
+              icon={<ArrowLeft size={16} color={colors.warm} />}
+            />
+            <Chip glass label={isEditing ? 'Editar Préstamo' : 'Nuevo Préstamo'} />
           </Animated.View>
 
-          {/* Título Principal */}
-          <Animated.View entering={FadeInDown.delay(50).duration(280)} className="mb-6">
-            <Text className="text-white text-3xl font-bold tracking-tight">
+          {/* Título principal */}
+          <Animated.View entering={screenEnter(1, reduced)} style={{ gap: 8, paddingHorizontal: 4 }}>
+            <AppText variant="title" accessibilityRole="header" style={{ fontSize: 40, lineHeight: 42, letterSpacing: -1.8 }}>
               {isEditing ? 'Editar préstamo' : 'Crear préstamo'}
-            </Text>
-            <Text className="text-zinc-400 text-xs mt-1">
+            </AppText>
+            <AppText variant="body">
               {isEditing
                 ? 'Al guardar se regenera el calendario de cuotas con las nuevas condiciones'
                 : 'Desembolso en pesos colombianos y congelamiento de condiciones'}
-            </Text>
+            </AppText>
           </Animated.View>
 
           {formError && <ErrorMessage message={formError} onRetry={() => setFormError(null)} />}
 
-          {/* Formulario en Tarjeta */}
-          <Animated.View
-            entering={FadeInDown.delay(100).duration(300).springify()}
-            className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-5 mb-5 shadow-2xl shadow-black"
-          >
-            {/* Campo 1: Seleccionar Prestatario con Buscador */}
-            <View className="mb-5">
-              <View className="flex-row items-center justify-between mb-2">
-                <Text className="text-zinc-300 text-xs font-medium ml-1">
-                  Prestatario <Text className="text-[#FF7854]">*</Text>
+          <Animated.View entering={screenEnter(2, reduced)} style={{ gap: 28 }}>
+            {/* Prestatario */}
+            <View style={{ gap: 14 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <Text style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 14 }}>
+                  Prestatario <Text style={{ color: colors.danger }}>*</Text>
                 </Text>
-                <Text className="text-zinc-500 text-[10px] uppercase font-semibold">Obligatorio</Text>
+                <Text style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 12 }}>Obligatorio</Text>
               </View>
 
               {people.length === 0 ? (
-                <View className="bg-[#0A0B10] border border-[#232433] rounded-2xl p-4 items-center">
-                  <Text className="text-zinc-400 text-xs text-center mb-2">
+                <Card variant="ink" style={{ padding: 20, alignItems: 'center', gap: 12 }}>
+                  <AppText variant="lbl" style={{ textAlign: 'center', lineHeight: 18 }}>
                     Aún no tienes personas registradas en tu directorio.
-                  </Text>
-                  <Pressable
-                    onPress={() => router.push('/personas/crear')}
-                    className="bg-[#D34524] px-4 py-2 rounded-xl"
-                  >
-                    <Text className="text-white text-xs font-bold">+ Crear persona</Text>
-                  </Pressable>
-                </View>
+                  </AppText>
+                  <Button label="+ Crear persona" size="sm" onPress={() => router.push('/personas/crear')} />
+                </Card>
               ) : (
-                <Pressable
+                <AnimatedPressable
                   onPress={() => setShowBorrowerModal(true)}
-                  className={`p-3.5 rounded-2xl border flex-row items-center justify-between transition-colors active:opacity-80 ${
-                    personError
-                      ? 'border-[#FB3758] bg-[#170E12]'
-                      : 'border-[#232433] bg-[#0A0B10]'
-                  }`}
+                  accessibilityRole="button"
+                  accessibilityLabel={selectedPerson ? `Prestatario: ${selectedPerson.nombre}. Cambiar` : 'Seleccionar prestatario'}
                 >
-                  {selectedPerson ? (
-                    <View className="flex-row items-center flex-1 mr-2">
-                      <View className="w-10 h-10 rounded-xl bg-[#29161A] border border-[#D34524] items-center justify-center mr-3">
-                        <Text className="text-sm font-bold font-mono text-[#FF7854]">
-                          {getInitials(selectedPerson.nombre)}
-                        </Text>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: 12,
+                      borderRadius: 24,
+                      backgroundColor: colors.card,
+                      borderWidth: 1,
+                      borderColor: personError ? colors.danger : colors.line,
+                    }}
+                  >
+                    {selectedPerson ? (
+                      <Avatar name={selectedPerson.nombre} size={48} />
+                    ) : (
+                      <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.card2, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' }}>
+                        <User size={20} color={colors.muted2} />
                       </View>
-                      <View className="flex-1">
-                        <View className="flex-row items-center gap-1.5 flex-wrap">
-                          <Text className="text-white text-sm font-semibold" numberOfLines={1}>
-                            {selectedPerson.nombre}
+                    )}
+                    <View style={{ flex: 1, gap: 3 }}>
+                      {selectedPerson ? (
+                        <>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.warm, fontFamily: fonts.medium, fontSize: 15 }}>
+                              {selectedPerson.nombre}
+                            </Text>
+                            {selectedPerson.exento_interes_ordinario && (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, height: 22, paddingHorizontal: 8, borderRadius: 999, backgroundColor: 'rgba(242,196,109,0.14)' }}>
+                                <ShieldCheck size={11} color={colors.warn} />
+                                <Text style={{ color: colors.warn, fontFamily: fonts.medium, fontSize: 11 }}>0% Exento</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text numberOfLines={1} style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 13 }}>
+                            {selectedPerson.telefono || 'Sin teléfono registrado'}
                           </Text>
-                          {selectedPerson.exento_interes_ordinario && (
-                            <View className="bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded-md flex-row items-center">
-                              <ShieldCheck size={10} color="#F59E0B" />
-                              <Text className="text-amber-400 text-[9px] font-bold ml-0.5">
-                                0% Exento
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text className="text-zinc-500 text-xs mt-0.5" numberOfLines={1}>
-                          {selectedPerson.telefono || 'Sin teléfono registrado'}
-                        </Text>
-                      </View>
+                        </>
+                      ) : (
+                        <>
+                          <Text style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 15 }}>
+                            Toca para seleccionar prestatario
+                          </Text>
+                          <Text style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 13 }}>
+                            Buscar en el directorio privado...
+                          </Text>
+                        </>
+                      )}
                     </View>
-                  ) : (
-                    <View className="flex-row items-center flex-1">
-                      <View className="w-10 h-10 rounded-xl bg-[#161722] border border-[#232433] items-center justify-center mr-3">
-                        <User size={18} color="#6B7280" />
-                      </View>
-                      <View>
-                        <Text className="text-zinc-300 text-sm font-medium">
-                          Toca para seleccionar prestatario
-                        </Text>
-                        <Text className="text-zinc-500 text-xs mt-0.5">
-                          Buscar en el directorio privado...
-                        </Text>
-                      </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.card2 }}>
+                      <Search size={14} color={colors.warm} />
+                      <Text style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 13 }}>
+                        {selectedPerson ? 'Cambiar' : 'Buscar'}
+                      </Text>
                     </View>
-                  )}
-
-                  <View className="flex-row items-center bg-[#151622] border border-[#232433] px-3 py-1.5 rounded-xl ml-2">
-                    <Search size={13} color="#FF7854" />
-                    <Text className="text-[#FF7854] text-xs font-semibold ml-1.5">
-                      {selectedPerson ? 'Cambiar' : 'Buscar'}
-                    </Text>
                   </View>
-                </Pressable>
+                </AnimatedPressable>
               )}
 
-              {personError && (
-                <Text className="text-[#FB3758] text-xs mt-1.5 ml-1">{personError}</Text>
-              )}
+              {personError && <FieldError message={personError} />}
 
               {selectedPerson?.exento_interes_ordinario && (
-                <View className="mt-2.5 bg-amber-500/10 border border-amber-500/25 p-2.5 rounded-xl flex-row items-center">
-                  <ShieldCheck size={16} color="#F59E0B" />
-                  <Text className="text-amber-400 text-xs font-medium ml-2 flex-1">
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 18, backgroundColor: 'rgba(242,196,109,0.10)' }}>
+                  <ShieldCheck size={16} color={colors.warn} />
+                  <Text style={{ flex: 1, color: colors.warn, fontFamily: fonts.medium, fontSize: 13, lineHeight: 18 }}>
                     Persona exenta de intereses: Tasa ajustada automáticamente a 0%.
                   </Text>
                 </View>
               )}
             </View>
 
-            {/* Campo 2: Capital Original */}
-            <View className="mb-5">
-              <Text className="text-zinc-300 text-xs font-medium mb-2 ml-1">
-                Capital original a desembolsar
-              </Text>
-              <View
-                className={`flex-row items-center px-4 bg-[#0A0B10] rounded-2xl border ${
-                  capitalError ? 'border-[#FB3758]' : 'border-[#232433]'
-                }`}
-                style={{ height: 52 }}
-              >
-                <DollarSign size={18} color="#FF7854" />
-                <TextInput
-                  value={capitalText}
-                  onChangeText={(val) => {
-                    const clean = val.replace(/[^0-9]/g, '')
-                    setCapitalText(clean)
-                    // Avisar en vivo si el monto queda en 0 tras haber escrito algo
-                    setCapitalError(
-                      clean !== '' && parseCOP(clean) <= 0
-                        ? 'Ingresa un monto de capital mayor a 0.'
-                        : null
-                    )
-                  }}
-                  placeholder="0"
-                  placeholderTextColor="#4B5563"
-                  keyboardType="numeric"
-                  className="flex-1 ml-2 text-white text-lg font-mono font-bold"
-                />
-                <Text className="text-zinc-500 text-xs font-mono font-semibold ml-2">COP</Text>
-              </View>
-              {capitalError && (
-                <Text className="text-[#FB3758] text-xs mt-1.5 ml-1">{capitalError}</Text>
-              )}
+            {/* Capital original */}
+            <View style={{ gap: 12 }}>
+              <Field
+                label="Capital original a desembolsar"
+                value={capitalText}
+                onChangeText={(val) => {
+                  const clean = val.replace(/[^0-9]/g, '')
+                  setCapitalText(clean)
+                  // Avisar en vivo si el monto queda en 0 tras haber escrito algo
+                  setCapitalError(
+                    clean !== '' && parseCOP(clean) <= 0
+                      ? 'Ingresa un monto de capital mayor a 0.'
+                      : null
+                  )
+                }}
+                error={capitalError}
+                placeholder="0"
+                keyboardType="numeric"
+                suffix="COP"
+                prefix={({ focused, error }) => (
+                  <DollarSign size={18} color={error ? colors.danger : focused ? colors.warm : colors.muted2} />
+                )}
+              />
 
-              {/* Botones de incremento rápido */}
-              <View className="flex-row gap-2 mt-2.5">
+              {/* Atajos de incremento rápido */}
+              <View style={{ flexDirection: 'row', gap: 8 }}>
                 {[500000, 1000000, 2000000].map((increment) => (
-                  <Pressable
+                  <AnimatedPressable
                     key={increment}
-                    onPress={() => addCapital(increment)}
-                    className="flex-1 py-1.5 bg-[#0A0B10] border border-[#232433] rounded-xl items-center active:bg-[#1E2030]"
+                    onPress={() => {
+                      haptic('selection')
+                      addCapital(increment)
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Sumar ${formatCOP(increment)}`}
+                    containerStyle={{ flex: 1 }}
+                    style={{ height: 44, borderRadius: 999, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' }}
                   >
-                    <Text className="text-zinc-300 text-[11px] font-mono">
-                      +{formatCOP(increment)}
-                    </Text>
-                  </Pressable>
+                    <Text style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 12 }}>+{formatCOP(increment)}</Text>
+                  </AnimatedPressable>
                 ))}
               </View>
             </View>
 
-            {/* Campo 3: Modalidad de Amortización con Explicación Detallada */}
-            <View className="mb-5">
-              <Text className="text-zinc-300 text-xs font-medium mb-2 ml-1">
-                Modalidad de pago y cuotas
-              </Text>
-              <View className="flex-row gap-2">
-                {[
-                  { id: 'solo_interes', label: 'Solo interés', desc: 'Réditos mensuales' },
-                  { id: 'pago_unico', label: 'Pago único', desc: 'Todo al vencer' },
-                  { id: 'cuotas_fijas', label: 'Cuotas fijas', desc: 'Amortización fija' },
-                ].map((item) => {
+            {/* Modalidad de amortización */}
+            <View style={{ gap: 12 }}>
+              <Label>Modalidad de pago y cuotas</Label>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {MODALITIES.map((item) => {
                   const isSelected = amortizationType === item.id
                   return (
-                    <Pressable
+                    <AnimatedPressable
                       key={item.id}
-                      onPress={() => setAmortizationType(item.id as AmortizationType)}
-                      className={`flex-1 p-2.5 rounded-2xl border items-center justify-center active:opacity-80 ${
-                        isSelected
-                          ? 'bg-[#D34524]/20 border-[#D34524]'
-                          : 'bg-[#0A0B10] border-[#232433]'
-                      }`}
+                      onPress={() => {
+                        haptic('selection')
+                        setAmortizationType(item.id)
+                      }}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: isSelected }}
+                      containerStyle={{ flex: 1 }}
+                      style={{
+                        minHeight: 68,
+                        paddingHorizontal: 6,
+                        paddingVertical: 10,
+                        borderRadius: 20,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 3,
+                        backgroundColor: isSelected ? colors.warm : colors.card,
+                        borderWidth: 1,
+                        borderColor: isSelected ? colors.warm : colors.line,
+                      }}
                     >
                       <Text
-                        className={`text-xs font-bold text-center ${
-                          isSelected ? 'text-white' : 'text-zinc-300'
-                        }`}
+                        style={{
+                          color: isSelected ? colors.onLight : colors.warm,
+                          fontFamily: fonts.medium,
+                          fontSize: 13,
+                          textAlign: 'center',
+                        }}
                       >
                         {item.label}
                       </Text>
-                      <Text className="text-zinc-500 text-[10px] text-center mt-0.5">
+                      <Text
+                        style={{
+                          color: isSelected ? colors.onLightMuted : colors.muted2,
+                          fontFamily: fonts.regular,
+                          fontSize: 11,
+                          textAlign: 'center',
+                        }}
+                      >
                         {item.desc}
                       </Text>
-                    </Pressable>
+                    </AnimatedPressable>
                   )
                 })}
               </View>
 
-              {/* Ficha Explicativa Contextual de la Modalidad Elegida */}
-              <View className="mt-2.5 p-3 rounded-2xl bg-[#0A0B10] border border-[#1E2030]">
-                {amortizationType === 'solo_interes' && (
-                  <View className="flex-row items-start gap-2">
-                    <HelpCircle size={15} color="#FF7854" style={{ marginTop: 2 }} />
-                    <View className="flex-1">
-                      <Text className="text-white text-xs font-bold mb-0.5">
-                        Solo interés (Réditos periódicos):
-                      </Text>
-                      <Text className="text-zinc-400 text-xs leading-4">
-                        El prestatario paga periódicamente solo el rendimiento generado. El capital original se mantiene intacto y se devuelve al final del préstamo o mediante abonos directos a capital.
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                {amortizationType === 'pago_unico' && (
-                  <View className="flex-row items-start gap-2">
-                    <HelpCircle size={15} color="#FF7854" style={{ marginTop: 2 }} />
-                    <View className="flex-1">
-                      <Text className="text-white text-xs font-bold mb-0.5">
-                        Pago único (Todo al vencimiento):
-                      </Text>
-                      <Text className="text-zinc-400 text-xs leading-4">
-                        Sin cuotas intermedias. El prestatario devuelve la totalidad del capital prestado más los intereses acumulados en un único pago al llegar la fecha de vencimiento.
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                {amortizationType === 'cuotas_fijas' && (
-                  <View className="flex-row items-start gap-2">
-                    <HelpCircle size={15} color="#FF7854" style={{ marginTop: 2 }} />
-                    <View className="flex-1">
-                      <Text className="text-white text-xs font-bold mb-0.5">
-                        Cuotas fijas (Amortización estructurada):
-                      </Text>
-                      <Text className="text-zinc-400 text-xs leading-4">
-                        El crédito se divide en {numeroCuotasNum} cuotas iguales periódicas. Cada cuota abonará una parte del capital prestado y otra parte de los intereses devengados.
-                      </Text>
-                    </View>
-                  </View>
-                )}
-              </View>
+              {/* Explicación de la modalidad elegida, desplegable */}
+              <Card variant="ink" style={{ paddingHorizontal: 16 }}>
+                <AnimatedPressable
+                  onPress={() => {
+                    haptic('selection')
+                    setExplainOpen((v) => !v)
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: explainOpen }}
+                  accessibilityLabel={explanation.title}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52 }}
+                >
+                  <HelpCircle size={16} color={colors.muted2} />
+                  <Text style={{ flex: 1, color: colors.warm, fontFamily: fonts.medium, fontSize: 13, lineHeight: 18 }}>
+                    {explanation.title}
+                  </Text>
+                  <AccordionChevron open={explainOpen} />
+                </AnimatedPressable>
+                <Accordion open={explainOpen}>
+                  <Text style={{ color: '#B4B4B9', fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, paddingBottom: 16 }}>
+                    {explanation.body}
+                  </Text>
+                </Accordion>
+              </Card>
             </View>
 
-            {/* Número de cuotas (Solo si cuotas fijas) */}
+            {/* Número de cuotas (solo si cuotas fijas) */}
             {amortizationType === 'cuotas_fijas' && (
-              <View className="mb-5">
-                <Text className="text-zinc-300 text-xs font-medium mb-2 ml-1">
-                  Número de cuotas mensuales
-                </Text>
-                <View className="flex-row items-center px-4 bg-[#0A0B10] rounded-xl border border-[#232433] h-12">
-                  <TextInput
-                    value={numeroCuotasText}
-                    onChangeText={(val) => setNumeroCuotasText(val.replace(/[^0-9]/g, ''))}
-                    placeholder="3"
-                    placeholderTextColor="#4B5563"
-                    keyboardType="number-pad"
-                    className="flex-1 text-white text-sm font-mono"
-                  />
-                  <Text className="text-zinc-500 text-xs">cuotas</Text>
-                </View>
-              </View>
+              <Field
+                label="Número de cuotas mensuales"
+                value={numeroCuotasText}
+                onChangeText={(val) => setNumeroCuotasText(val.replace(/[^0-9]/g, ''))}
+                placeholder="3"
+                keyboardType="number-pad"
+                suffix="cuotas"
+              />
             )}
 
-            {/* Campo 4: Tasa de Interés Mensual */}
-            <View className="mb-5">
-              <View className="flex-row items-center justify-between mb-2">
-                <Text className="text-zinc-300 text-xs font-medium ml-1">
-                  Tasa ordinaria mensual (% mes)
-                </Text>
-                <View className="flex-row items-center">
-                  <Text className="text-zinc-400 text-xs mr-2">Tasa 0% especial</Text>
-                  <Switch
-                    value={isZeroRateOverride}
-                    onValueChange={(val) => {
-                      setIsZeroRateOverride(val)
-                      if (val) {
-                        setTasaMensualText('0')
-                      } else {
-                        setTasaMensualText(
-                          settings?.tasa_mensual_defecto?.toString() ?? '20'
-                        )
-                      }
-                    }}
-                    trackColor={{ false: '#232433', true: '#D34524' }}
-                    thumbColor={isZeroRateOverride ? '#FFFFFF' : '#9CA3AF'}
-                  />
+            {/* Tasa de interés mensual */}
+            <View style={{ gap: 14 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Label>Tasa ordinaria mensual (% mes)</Label>
                 </View>
+                <AnimatedPressable
+                  onPress={() => {
+                    const val = !isZeroRateOverride
+                    haptic('selection')
+                    setIsZeroRateOverride(val)
+                    if (val) {
+                      setTasaMensualText('0')
+                    } else {
+                      setTasaMensualText(settings?.tasa_mensual_defecto?.toString() ?? '20')
+                    }
+                  }}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: isZeroRateOverride }}
+                  accessibilityLabel="Tasa 0% especial"
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 }}
+                >
+                  <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 12 }}>Tasa 0% especial</Text>
+                  <Toggle value={isZeroRateOverride} />
+                </AnimatedPressable>
               </View>
 
               {!isZeroRateOverride ? (
-                <View className="flex-row items-center px-4 bg-[#0A0B10] rounded-xl border border-[#232433] h-12">
-                  <Percent size={16} color="#6B7280" />
-                  <TextInput
-                    value={tasaMensualText}
-                    onChangeText={(val) => {
-                      const clean = val.replace(/[^0-9.]/g, '')
-                      setTasaMensualText(clean)
-                    }}
-                    placeholder={settings?.tasa_mensual_defecto?.toString() ?? '20'}
-                    placeholderTextColor="#4B5563"
-                    keyboardType="numeric"
-                    className="flex-1 ml-2 text-white text-sm font-mono"
-                  />
-                  <Text className="text-zinc-500 text-xs font-mono">% mensual</Text>
-                </View>
+                <Field
+                  value={tasaMensualText}
+                  onChangeText={(val) => setTasaMensualText(val.replace(/[^0-9.]/g, ''))}
+                  placeholder={settings?.tasa_mensual_defecto?.toString() ?? '20'}
+                  keyboardType="numeric"
+                  suffix="% mensual"
+                  accessibilityLabel="Tasa ordinaria mensual"
+                  prefix={({ focused }) => <Percent size={16} color={focused ? colors.warm : colors.muted2} />}
+                />
               ) : (
-                <View className="bg-[#0A0B10] p-3 rounded-xl border border-amber-500/30 flex-row items-center">
-                  <ShieldCheck size={16} color="#F59E0B" />
-                  <Text className="text-amber-400 text-xs ml-2 font-medium">
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 20, backgroundColor: 'rgba(242,196,109,0.10)', borderWidth: 1, borderColor: 'rgba(242,196,109,0.28)' }}>
+                  <ShieldCheck size={16} color={colors.warn} />
+                  <Text style={{ flex: 1, color: colors.warn, fontFamily: fonts.medium, fontSize: 13, lineHeight: 18 }}>
                     Préstamo pactado a tasa 0% (sin intereses ordinarios).
                   </Text>
                 </View>
               )}
             </View>
 
-            {/* Fechas de Desembolso y Primer Vencimiento con Selector Visual */}
-            <View className="mb-5">
-              <Text className="text-zinc-300 text-xs font-medium mb-2 ml-1">
-                Fechas de operación (Calendario)
-              </Text>
-
-              <View className="flex-row gap-3">
-                {/* Selector Desembolso */}
-                <Pressable
+            {/* Fechas de operación */}
+            <View style={{ gap: 12 }}>
+              <Label>Fechas de operación (Calendario)</Label>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <AnimatedPressable
                   onPress={() => setShowDesembolsoPicker(true)}
-                  className="flex-1 bg-[#0A0B10] border border-[#232433] rounded-2xl p-3 active:border-zinc-700"
+                  accessibilityRole="button"
+                  accessibilityLabel={`Fecha del préstamo: ${formatDateLong(fechaDesembolso)}`}
+                  containerStyle={{ flex: 1 }}
+                  style={{ gap: 8, padding: 14, borderRadius: 22, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line }}
                 >
-                  <Text className="text-zinc-500 text-[11px] mb-1 font-medium">
-                    Fecha del préstamo
-                  </Text>
-                  <View className="flex-row items-center gap-2">
-                    <Calendar size={14} color="#FF7854" />
-                    <Text className="text-white text-xs font-bold font-mono">
+                  <Text style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 12 }}>Fecha del préstamo</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Calendar size={15} color={colors.warm} />
+                    <Text style={{ flexShrink: 1, color: colors.warm, fontFamily: fonts.medium, fontSize: 13 }}>
                       {formatDateLong(fechaDesembolso)}
                     </Text>
                   </View>
-                  <Text className="text-zinc-600 text-[10px] mt-1">Toca para cambiar</Text>
-                </Pressable>
+                  <Text style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 11 }}>Toca para cambiar</Text>
+                </AnimatedPressable>
 
-                {/* Selector Primer Vencimiento */}
-                <Pressable
+                <AnimatedPressable
                   onPress={() => setShowVencimientoPicker(true)}
-                  className={`flex-1 bg-[#0A0B10] rounded-2xl p-3 border active:border-zinc-700 ${
-                    vencimientoError ? 'border-[#FB3758]' : 'border-[#232433]'
-                  }`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`1.er Vencimiento: ${formatDateLong(fechaPrimerVencimiento)}`}
+                  containerStyle={{ flex: 1 }}
+                  style={{
+                    gap: 8,
+                    padding: 14,
+                    borderRadius: 22,
+                    backgroundColor: colors.card,
+                    borderWidth: 1,
+                    borderColor: vencimientoError ? colors.danger : colors.line,
+                  }}
                 >
-                  <Text className="text-zinc-500 text-[11px] mb-1 font-medium">
-                    1.er Vencimiento
-                  </Text>
-                  <View className="flex-row items-center gap-2">
-                    <Calendar size={14} color={vencimientoError ? '#FB3758' : '#FF7854'} />
-                    <Text className="text-white text-xs font-bold font-mono">
+                  <Text style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 12 }}>1.er Vencimiento</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Calendar size={15} color={vencimientoError ? colors.danger : colors.warm} />
+                    <Text style={{ flexShrink: 1, color: colors.warm, fontFamily: fonts.medium, fontSize: 13 }}>
                       {formatDateLong(fechaPrimerVencimiento)}
                     </Text>
                   </View>
-                  <Text className="text-zinc-600 text-[10px] mt-1">Toca para cambiar</Text>
-                </Pressable>
+                  <Text style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 11 }}>Toca para cambiar</Text>
+                </AnimatedPressable>
               </View>
 
-              <Text className="text-zinc-500 text-[11px] mt-2 ml-1 leading-4">
-                Al cambiar la fecha del préstamo, el 1.er vencimiento se ajusta al mismo día del mes
-                siguiente. Puedes modificarlo después si lo necesitas.
+              <Text style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18 }}>
+                Al cambiar la fecha del préstamo, el 1.er vencimiento se ajusta al mismo día del mes siguiente. Puedes modificarlo después si lo necesitas.
               </Text>
 
-              {vencimientoError && (
-                <Text className="text-[#FB3758] text-xs mt-1.5 ml-1">{vencimientoError}</Text>
-              )}
+              {vencimientoError && <FieldError message={vencimientoError} />}
             </View>
 
             {/* Notas opcionales */}
-            <View className="mb-2">
-              <Text className="text-zinc-300 text-xs font-medium mb-2 ml-1">
-                Notas privadas o garantía (opcional)
-              </Text>
-              <View className="px-4 py-2.5 bg-[#0A0B10] rounded-xl border border-[#232433] min-h-[70px]">
-                <TextInput
-                  value={notas}
-                  onChangeText={setNotas}
-                  placeholder="Ej. Prestatario de confianza, moto en respaldo..."
-                  placeholderTextColor="#4B5563"
-                  multiline
-                  numberOfLines={2}
-                  className="text-white text-xs"
-                />
-              </View>
-            </View>
+            <Field
+              label="Notas privadas o garantía (opcional)"
+              value={notas}
+              onChangeText={setNotas}
+              placeholder="Ej. Prestatario de confianza, moto en respaldo..."
+              multiline
+              numberOfLines={3}
+            />
           </Animated.View>
 
-          {/* Tarjeta de Previsualización y Advertencia Explícita Figma */}
-          <Animated.View
-            entering={FadeInUp.delay(180).duration(300).springify()}
-            className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-5 mb-4 shadow-xl shadow-black"
-          >
-            <Text className="text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-2">
+          {/* Resumen de la primera obligación y confirmación explícita */}
+          <Animated.View entering={screenEnter(3, reduced)} style={{ gap: 12 }}>
+            <AppText variant="lbl" tone="muted2" style={{ textTransform: 'uppercase', letterSpacing: 1.2 }}>
               Resumen estimado 1.ª obligación
-            </Text>
-            <View className="bg-[#0A0B10] border border-[#1C1E2B] rounded-2xl p-4 mb-3">
-              <Text className="text-zinc-400 text-xs">
+            </AppText>
+            <Card variant="inkRed" style={{ padding: 20, gap: 6 }}>
+              <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 13 }}>
                 {amortizationType === 'solo_interes'
                   ? 'Interés a pagar en 1.er corte'
                   : 'Total exigible en 1.er vencimiento'}
               </Text>
-              <View className="flex-row items-baseline gap-1.5 mt-0.5">
-                <Text className="text-white text-2xl font-extrabold font-mono">
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  style={{ flexShrink: 1, color: colors.warm, fontFamily: fonts.medium, fontSize: 36, letterSpacing: -1.4 }}
+                >
                   {formatCOP(totalEstimadoPrimeraObligacion)}
                 </Text>
-                <Text className="text-zinc-500 text-xs font-mono">COP</Text>
+                <Text style={{ color: colors.muted2, fontFamily: fonts.medium, fontSize: 13 }}>COP</Text>
               </View>
-              <Text className="text-zinc-500 text-[11px] mt-1.5">
+              <Text style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 12, marginTop: 4 }}>
                 Capital original: {formatCOP(capitalNum)} · Tasa: {tasaNum}% mensual
               </Text>
-            </View>
+            </Card>
 
-            <View className="flex-row items-start gap-2 bg-[#171415] border border-[#3A1F24] p-3 rounded-xl">
-              <AlertCircle size={16} color="#FF7854" style={{ marginTop: 2 }} />
-              <Text className="text-zinc-400 text-xs flex-1 leading-4">
-                <Text className="text-white font-semibold">Confirmación explícita:</Text> Revisa el
-                capital, fechas y tasa antes de confirmar. Al confirmar se registrará el desembolso
-                en tu cartera privada y se programará el cobro inicial.
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 14, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line }}>
+              <AlertCircle size={16} color={colors.muted} style={{ marginTop: 2 }} />
+              <Text style={{ flex: 1, color: colors.muted, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18 }}>
+                <Text style={{ color: colors.warm, fontFamily: fonts.medium }}>Confirmación explícita:</Text> Revisa el capital, fechas y tasa antes de confirmar. Al confirmar se registrará el desembolso en tu cartera privada y se programará el cobro inicial.
               </Text>
             </View>
           </Animated.View>
         </ScrollView>
 
-        {/* Footer Ergonómico Pinned con Zona Segura Responsiva */}
-        <Animated.View
-          entering={FadeInUp.delay(240).duration(280)}
+        {/* Acción fija abajo */}
+        <View
           style={{
-            paddingBottom: getSafeBottomInset(insets.bottom, 20),
             paddingTop: 12,
-            paddingHorizontal: 24,
+            paddingHorizontal: 16,
+            paddingBottom: getSafeBottomInset(insets.bottom, 20),
+            backgroundColor: colors.app,
           }}
-          className="bg-[#060709] border-t border-[#161722] w-full"
         >
-          <View className="max-w-md mx-auto w-full">
-            <Pressable
-              onPress={handleSubmit}
-              disabled={loading || capitalNum <= 0}
-              style={{ height: 52, opacity: !loading && capitalNum <= 0 ? 0.45 : 1 }}
-              className={`w-full rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#D34524]/20 active:bg-[#E54F2C] ${
-                loading ? 'bg-[#D34524]/60' : 'bg-[#D34524]'
-              }`}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <View className="flex-row items-center justify-center gap-2">
-                  <Check size={18} color="#FFFFFF" strokeWidth={2.5} />
-                  <Text className="text-white text-[15px] font-bold tracking-wide">
-                    {isEditing ? 'Guardar cambios' : 'Confirmar y crear préstamo'}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
-          </View>
-        </Animated.View>
+          <Button
+            label={done ? (isEditing ? 'Cambios guardados' : 'Préstamo creado') : isEditing ? 'Guardar cambios' : 'Confirmar y crear préstamo'}
+            size="lg"
+            variant={done ? 'success' : 'solid'}
+            onPress={handleSubmit}
+            loading={loading}
+            disabled={done || !canSubmit}
+            icon={<Check size={16} color={done ? '#06220F' : '#000000'} strokeWidth={2.5} />}
+            style={{ width: '100%', ...(done ? { opacity: 1 } : null) }}
+          />
+        </View>
 
-        {/* Modal de Búsqueda y Selección de Prestatario */}
+        {/* Modal de búsqueda y selección de prestatario */}
         <BorrowerPickerModal
           visible={showBorrowerModal}
           onClose={() => setShowBorrowerModal(false)}
@@ -715,7 +708,7 @@ export const LoanForm: React.FC<LoanFormProps> = ({
           }}
         />
 
-        {/* Modales de Selección Visual de Fecha */}
+        {/* Modales de selección visual de fecha */}
         <DatePickerModal
           visible={showDesembolsoPicker}
           onClose={() => setShowDesembolsoPicker(false)}

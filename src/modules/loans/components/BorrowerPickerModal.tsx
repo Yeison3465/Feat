@@ -1,18 +1,16 @@
 import React, { useState, useMemo } from 'react'
-import {
-  View,
-  Text,
-  Modal,
-  TextInput,
-  Pressable,
-  FlatList,
-  Platform,
-} from 'react-native'
+import { View, Text, FlatList } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Search, X, Check, UserPlus, Users, ShieldAlert } from 'lucide-react-native'
+import { Check, UserPlus, Users, ShieldCheck, X } from 'lucide-react-native'
 import { usePeople } from '../../people/hooks/usePeople'
 import { Person } from '../../people/types'
-import { getInitials } from '../../../shared/utils/initials'
+import { AnimatedPressable } from '../../../shared/components/AnimatedPressable'
+import { AppText } from '../../../shared/ui/AppText'
+import { Avatar } from '../../../shared/ui/Avatar'
+import { Button } from '../../../shared/ui/Button'
+import { Sheet } from '../../../shared/ui/Overlay'
+import { SearchField } from '../../../shared/ui/SearchField'
+import { colors, fonts } from '../../../shared/theme/tokens'
 
 interface BorrowerPickerModalProps {
   readonly visible: boolean
@@ -53,160 +51,111 @@ export const BorrowerPickerModal: React.FC<BorrowerPickerModalProps> = ({
   }
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <View className="flex-1 bg-black/75 justify-end">
-        <Pressable onPress={onClose} className="flex-1" />
+    <Sheet visible={visible} onClose={onClose}>
+      {/* Cabecera de la hoja */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingBottom: 14 }}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <AppText variant="sec" style={{ fontSize: 20 }}>
+            Seleccionar prestatario
+          </AppText>
+          <AppText variant="lbl" tone="muted2">
+            {people.length} personas en tu cartera privada
+          </AppText>
+        </View>
+        <AnimatedPressable
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Cerrar"
+          style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.card2, alignItems: 'center', justifyContent: 'center' }}
+        >
+          <X size={18} color={colors.warm} />
+        </AnimatedPressable>
+      </View>
 
-        <View className="bg-[#12131A] border-t border-[#1E2030] rounded-t-3xl max-h-[85%] w-full max-w-lg mx-auto shadow-2xl shadow-black">
-          {/* Barra de Arrastre / Indicador Superior */}
-          <View className="items-center pt-3 pb-2">
-            <View className="w-10 h-1 rounded-full bg-[#2A2C3D]" />
-          </View>
+      {/* Buscador */}
+      <SearchField
+        value={search}
+        onChangeText={setSearch}
+        placeholder="Buscar por nombre o teléfono..."
+        accessibilityLabel="Buscar prestatario"
+        autoFocus={visible}
+      />
 
-          {/* Header del Modal */}
-          <View className="flex-row items-center justify-between px-6 pb-3 border-b border-[#1C1E2B]">
-            <View>
-              <Text className="text-white text-lg font-bold tracking-tight">
-                Seleccionar prestatario
-              </Text>
-              <Text className="text-zinc-400 text-xs mt-0.5">
-                {people.length} personas en tu cartera privada
-              </Text>
-            </View>
-
-            <Pressable
-              onPress={onClose}
-              hitSlop={10}
-              className="p-1.5 rounded-xl bg-[#1A1B26] active:bg-[#252738]"
+      {/* Listado de personas filtradas */}
+      <FlatList
+        data={filteredPeople}
+        keyExtractor={(item) => item.id}
+        style={{ marginTop: 12 }}
+        contentContainerStyle={{ gap: 8, paddingBottom: 8 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        renderItem={({ item }) => {
+          const isSelected = item.id === selectedPersonId
+          return (
+            <AnimatedPressable
+              onPress={() => handleSelect(item)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isSelected }}
+              accessibilityLabel={item.nombre}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+                padding: 12,
+                borderRadius: 22,
+                backgroundColor: isSelected ? colors.card2 : colors.ink,
+                borderWidth: 1,
+                borderColor: isSelected ? colors.warm : colors.line,
+              }}
             >
-              <X size={18} color="#9CA3AF" />
-            </Pressable>
-          </View>
-
-          {/* Buscador de Prestatarios */}
-          <View className="px-6 pt-3 pb-2">
-            <View className="flex-row items-center px-3.5 h-12 bg-[#0A0B10] border border-[#232433] rounded-2xl">
-              <Search size={18} color="#6B7280" />
-              <TextInput
-                value={search}
-                onChangeText={setSearch}
-                placeholder="Buscar por nombre o teléfono..."
-                placeholderTextColor="#4B5563"
-                autoFocus={Platform.OS !== 'web'}
-                className="flex-1 ml-2.5 text-white text-sm"
-              />
-              {search.length > 0 && (
-                <Pressable onPress={() => setSearch('')} hitSlop={8}>
-                  <X size={16} color="#9CA3AF" />
-                </Pressable>
-              )}
-            </View>
-          </View>
-
-          {/* Listado de Personas Filtradas */}
-          <FlatList
-            data={filteredPeople}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 36, paddingTop: 6 }}
-            keyboardShouldPersistTaps="handled"
-            renderItem={({ item }) => {
-              const isSelected = item.id === selectedPersonId
-              const initials = getInitials(item.nombre)
-
-              return (
-                <Pressable
-                  onPress={() => handleSelect(item)}
-                  className={`flex-row items-center justify-between p-3.5 mb-2 rounded-2xl border transition-colors active:opacity-80 ${
-                    isSelected
-                      ? 'bg-[#1C1518] border-[#D34524]'
-                      : 'bg-[#0E0F16] border-[#1C1E2B]'
-                  }`}
-                >
-                  <View className="flex-row items-center flex-1 mr-2">
-                    <View
-                      className={`w-11 h-11 rounded-xl items-center justify-center mr-3 border ${
-                        isSelected
-                          ? 'bg-[#29161A] border-[#D34524]'
-                          : 'bg-[#181924] border-[#252738]'
-                      }`}
-                    >
-                      <Text
-                        className={`text-sm font-bold font-mono ${
-                          isSelected ? 'text-[#FF7854]' : 'text-zinc-300'
-                        }`}
-                      >
-                        {initials}
-                      </Text>
-                    </View>
-
-                    <View className="flex-1">
-                      <View className="flex-row items-center gap-1.5 flex-wrap">
-                        <Text
-                          className={`text-sm font-semibold ${
-                            isSelected ? 'text-white' : 'text-zinc-200'
-                          }`}
-                          numberOfLines={1}
-                        >
-                          {item.nombre}
-                        </Text>
-                        {item.exento_interes_ordinario && (
-                          <View className="bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded-md flex-row items-center">
-                            <ShieldAlert size={10} color="#F59E0B" />
-                            <Text className="text-amber-400 text-[9px] font-bold ml-0.5">
-                              0% Exento
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-
-                      <Text className="text-zinc-500 text-xs mt-0.5" numberOfLines={1}>
-                        {item.telefono || 'Sin teléfono registrado'}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {isSelected && (
-                    <View className="w-6 h-6 rounded-full bg-[#D34524] items-center justify-center shadow-sm shadow-[#D34524]">
-                      <Check size={14} color="#FFFFFF" strokeWidth={3} />
+              <Avatar name={item.nombre} size={48} />
+              <View style={{ flex: 1, gap: 3 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <Text numberOfLines={1} style={{ flexShrink: 1, color: colors.warm, fontFamily: fonts.medium, fontSize: 15 }}>
+                    {item.nombre}
+                  </Text>
+                  {item.exento_interes_ordinario && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, height: 22, paddingHorizontal: 8, borderRadius: 999, backgroundColor: 'rgba(242,196,109,0.14)' }}>
+                      <ShieldCheck size={11} color={colors.warn} />
+                      <Text style={{ color: colors.warn, fontFamily: fonts.medium, fontSize: 11 }}>0% Exento</Text>
                     </View>
                   )}
-                </Pressable>
-              )
-            }}
-            ListEmptyComponent={
-              <View className="py-10 items-center justify-center">
-                <View className="w-14 h-14 rounded-2xl bg-[#151622] border border-[#202234] items-center justify-center mb-3">
-                  <Users size={24} color="#6B7280" />
                 </View>
-                <Text className="text-white text-sm font-bold mb-1">
-                  {search ? 'Sin resultados para la búsqueda' : 'No hay prestatarios registrados'}
+                <Text numberOfLines={1} style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 13 }}>
+                  {item.telefono || 'Sin teléfono registrado'}
                 </Text>
-                <Text className="text-zinc-400 text-xs text-center max-w-[260px] mb-4">
-                  {search
-                    ? `No se encontró a nadie que coincida con "${search}".`
-                    : 'Crea tu primer prestatario para otorgarle préstamos.'}
-                </Text>
-
-                <Pressable
-                  onPress={handleCreateNew}
-                  className="flex-row items-center bg-[#D34524] active:bg-[#E54F2C] px-4 py-2.5 rounded-xl shadow-md shadow-[#D34524]/20"
-                >
-                  <UserPlus size={15} color="#FFFFFF" />
-                  <Text className="text-white text-xs font-bold ml-1.5">
-                    + Crear nueva persona
-                  </Text>
-                </Pressable>
               </View>
-            }
-          />
-        </View>
-      </View>
-    </Modal>
+              {isSelected && (
+                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.warm, alignItems: 'center', justifyContent: 'center' }}>
+                  <Check size={15} color="#000000" strokeWidth={2.5} />
+                </View>
+              )}
+            </AnimatedPressable>
+          )
+        }}
+        ListEmptyComponent={
+          <View style={{ paddingVertical: 32, alignItems: 'center', gap: 10 }}>
+            <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: colors.card2, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' }}>
+              <Users size={24} color={colors.muted2} />
+            </View>
+            <AppText variant="h" style={{ textAlign: 'center' }}>
+              {search ? 'Sin resultados para la búsqueda' : 'No hay prestatarios registrados'}
+            </AppText>
+            <AppText variant="lbl" tone="muted2" style={{ textAlign: 'center', maxWidth: 260, lineHeight: 18 }}>
+              {search
+                ? `No se encontró a nadie que coincida con "${search}".`
+                : 'Crea tu primer prestatario para otorgarle préstamos.'}
+            </AppText>
+            <Button
+              label="+ Crear nueva persona"
+              size="sm"
+              onPress={handleCreateNew}
+              icon={<UserPlus size={16} color="#000000" />}
+              style={{ marginTop: 6 }}
+            />
+          </View>
+        }
+      />
+    </Sheet>
   )
 }
-

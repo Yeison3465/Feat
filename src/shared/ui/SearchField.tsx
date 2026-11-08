@@ -9,10 +9,11 @@ interface SearchFieldProps {
   readonly onChangeText: (text: string) => void
   readonly placeholder: string
   readonly accessibilityLabel: string
+  readonly autoFocus?: boolean
 }
 
 // Buscador en píldora de 52 px con botón para limpiar; el borde se aclara al enfocar
-export const SearchField: React.FC<SearchFieldProps> = ({ value, onChangeText, placeholder, accessibilityLabel }) => {
+export const SearchField: React.FC<SearchFieldProps> = ({ value, onChangeText, placeholder, accessibilityLabel, autoFocus }) => {
   const [focused, setFocused] = useState(false)
   return (
     <View
@@ -40,6 +41,7 @@ export const SearchField: React.FC<SearchFieldProps> = ({ value, onChangeText, p
         selectionColor={colors.warm}
         accessibilityLabel={accessibilityLabel}
         returnKeyType="search"
+        autoFocus={autoFocus}
         style={{ flex: 1, minWidth: 0, height: 50, color: colors.warm, fontFamily: fonts.regular, fontSize: 14 }}
       />
       {value.length > 0 && (
