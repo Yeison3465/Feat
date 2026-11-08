@@ -67,7 +67,6 @@ export const DashboardMetricsGrid: React.FC<DashboardMetricsGridProps> = ({ metr
         <Animated.View key="metrics-general" entering={FadeIn.duration(200)} style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
           <Cell>
             <MetricCard
-              tone="photo"
               label="Ganancia cobrada"
               icon={(c) => <TrendingUp size={16} color={c} />}
               value={formatCOP(metrics.gananciasTotalesCobradas)}
@@ -116,18 +115,17 @@ export const DashboardMetricsGrid: React.FC<DashboardMetricsGridProps> = ({ metr
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
             <Cell>
               <MetricCard
-                tone="photo"
                 label="Capital recuperado"
                 topRight={
-                  <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)' }}>
-                    <Text style={{ color: '#FFFFFF', fontFamily: fonts.medium, fontSize: 11, lineHeight: 14 }}>Recuperación</Text>
+                  <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: '#F2F2EF' }}>
+                    <Text style={{ color: '#2B2B2F', fontFamily: fonts.medium, fontSize: 11, lineHeight: 14 }}>Recuperación</Text>
                   </View>
                 }
                 value={`${metrics.tasaRecuperacionPct.toFixed(1)}%`}
                 footer={
                   <View style={{ gap: 8 }}>
-                    <ProgressBar percent={metrics.tasaRecuperacionPct} fill="#FFFFFF" track="rgba(255,255,255,0.25)" />
-                    <Text style={{ color: 'rgba(255,255,255,0.88)', fontFamily: fonts.regular, fontSize: 12 }}>
+                    <ProgressBar percent={metrics.tasaRecuperacionPct} fill={GREEN} track="#DAD9D4" />
+                    <Text style={{ color: '#6E6E74', fontFamily: fonts.regular, fontSize: 12 }}>
                       {formatCOP(metrics.totalCapitalPagado)} devueltos
                     </Text>
                   </View>
