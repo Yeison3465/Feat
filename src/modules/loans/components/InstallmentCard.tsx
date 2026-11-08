@@ -1,27 +1,24 @@
 import React from 'react'
-import { View, Text, Pressable } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 import { Calendar, CheckCircle2, Clock, AlertTriangle, ChevronRight } from 'lucide-react-native'
 import { LoanInstallment } from '../types'
 import { formatCOP, formatDateFriendly } from '../../../shared/utils/currency'
-import Animated, {
-  FadeInDown,
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  useReducedMotion,
-} from 'react-native-reanimated'
+import { installmentImage, tintByTone, tintLocations, InstallmentState } from '../../../shared/images'
+import { AnimatedPressable } from '../../../shared/components/AnimatedPressable'
+import { Chip } from '../../../shared/ui/Chip'
+import { Card } from '../../../shared/ui/Card'
+import { CoverImage } from '../../../shared/ui/CoverImage'
+import { colors, fonts } from '../../../shared/theme/tokens'
 
 interface InstallmentCardProps {
   readonly installment: LoanInstallment
   readonly onPress?: () => void
+  // «foto»: tarjeta con foto según el estado de la cuota. «compacta»: tarjeta oscura sin foto.
+  readonly variant?: 'foto' | 'compacta'
 }
 
-export const InstallmentCard: React.FC<InstallmentCardProps> = ({ installment, onPress }) => {
-  const reducedMotion = useReducedMotion()
-  const scale = useSharedValue(1)
-  const scaleStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }))
+export const InstallmentCard: React.FC<InstallmentCardProps> = ({ installment, onPress, variant = 'foto' }) => {
   const today = new Date().toISOString().split('T')[0]
   const isOverdue = !installment.esta_liquidada && installment.fecha_vencimiento < today
 
@@ -33,121 +30,166 @@ export const InstallmentCard: React.FC<InstallmentCardProps> = ({ installment, o
   const moraRestante = Math.max(0, installment.mora_acumulada - installment.mora_pagada)
   const saldoRestante = interesRestante + capitalRestante + moraRestante
 
-  const getStatusBadge = () => {
-    if (installment.esta_liquidada) {
-      return (
-        <View className="bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 rounded-full flex-row items-center">
-          <CheckCircle2 size={11} color="#10B981" />
-          <Text className="text-emerald-400 text-[10px] font-semibold ml-1">Pagada</Text>
-        </View>
-      )
-    }
-    if (isOverdue) {
-      return (
-        <View className="bg-rose-500/15 border border-rose-500/30 px-2.5 py-0.5 rounded-full flex-row items-center">
-          <AlertTriangle size={11} color="#FB3758" />
-          <Text className="text-[#FB3758] text-[10px] font-semibold ml-1">Atrasada</Text>
-        </View>
-      )
-    }
+  const state: InstallmentState = installment.esta_liquidada ? 'pagada' : isOverdue ? 'atrasada' : 'pendiente'
+  const badge =
+    state === 'pagada'
+      ? { label: 'Pagada', tone: 'ok' as const, icon: <CheckCircle2 size={12} color="#A6E8C3" /> }
+      : state === 'atrasada'
+        ? { label: 'Atrasada', tone: 'danger' as const, icon: <AlertTriangle size={12} color="#FFB8B0" /> }
+        : { label: 'Pendiente', tone: 'warn' as const, icon: <Clock size={12} color="#F8D58E" /> }
+
+  const capitalText =
+    installment.capital_pagado > installment.capital_esperado
+      ? `${formatCOP(installment.capital_pagado)} abonado`
+      : formatCOP(installment.capital_esperado)
+
+  const a11y = `Cuota ${installment.numero_cuota}, ${badge.label}. Ver detalle`
+
+  if (variant === 'compacta') {
     return (
-      <View className="bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 rounded-full flex-row items-center">
-        <Clock size={11} color="#F59E0B" />
-        <Text className="text-amber-400 text-[10px] font-semibold ml-1">Pendiente</Text>
-      </View>
+      <AnimatedPressable
+        onPress={onPress}
+        disabled={!onPress}
+        accessibilityRole="button"
+        accessibilityLabel={a11y}
+        containerClassName="mb-3"
+      >
+        <Card variant="ink" style={{ padding: 16, gap: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 }}>
+              <Text style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 17 }}>#{installment.numero_cuota}</Text>
+              <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 12 }}>
+                {formatDateFriendly(installment.fecha_vencimiento)}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Chip tone={badge.tone} label={badge.label} />
+              {onPress && <ChevronRight size={15} color={colors.muted2} />}
+            </View>
+          </View>
+
+          <View style={{ gap: 6, padding: 12, borderRadius: 18, backgroundColor: colors.card2 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 12 }}>Obligación del periodo:</Text>
+              <Text style={{ color: colors.warm, fontFamily: fonts.semibold, fontSize: 14 }}>{formatCOP(totalEsperado)}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+              <Text style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 12, flexShrink: 1 }}>Capital: {capitalText}</Text>
+              <Text style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 12 }}>
+                Interés: {formatCOP(installment.interes_esperado)}
+              </Text>
+            </View>
+            {installment.mora_acumulada > 0 && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: colors.dangerSoft, fontFamily: fonts.regular, fontSize: 12 }}>Mora acumulada:</Text>
+                <Text style={{ color: colors.dangerSoft, fontFamily: fonts.semibold, fontSize: 13 }}>
+                  {formatCOP(installment.mora_acumulada)}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 12 }}>
+              Recaudado: <Text style={{ color: colors.warm, fontFamily: fonts.medium }}>{formatCOP(totalPagado)}</Text>
+            </Text>
+            {saldoRestante > 0 ? (
+              <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 12 }}>
+                Resta: <Text style={{ color: colors.warm, fontFamily: fonts.medium }}>{formatCOP(saldoRestante)}</Text>
+              </Text>
+            ) : (
+              <Text style={{ color: colors.okSoft, fontFamily: fonts.regular, fontSize: 12 }}>Periodo liquidado</Text>
+            )}
+          </View>
+        </Card>
+      </AnimatedPressable>
     )
   }
 
+  const img = installmentImage(state)
+
   return (
-    <Animated.View
-      entering={reducedMotion ? undefined : FadeInDown.duration(380).springify().damping(18).stiffness(160)}
-      style={scaleStyle}
+    <AnimatedPressable
+      onPress={onPress}
+      disabled={!onPress}
+      accessibilityRole="button"
+      accessibilityLabel={a11y}
+      containerClassName="mb-3"
+      style={{ borderRadius: 32, overflow: 'hidden', borderWidth: 1, borderColor: colors.line, backgroundColor: colors.app }}
     >
-      <Pressable
-        onPressIn={() => {
-          if (!reducedMotion && onPress) scale.value = withSpring(0.98, { damping: 16, stiffness: 300 })
-        }}
-        onPressOut={() => {
-          if (!reducedMotion) scale.value = withSpring(1, { damping: 16, stiffness: 300 })
-        }}
-        onPress={onPress}
-        className="bg-[#101119] border border-[#1C1E2B] active:border-[#2C2F45] rounded-2xl p-4 mb-3"
-      >
-      {/* Cabecera de Cuota */}
-      <View className="flex-row items-center justify-between mb-2">
-        <View className="flex-row items-center">
-          <View className="w-6 h-6 rounded-md bg-[#1C1E2B] items-center justify-center mr-2">
-            <Text className="text-white text-xs font-bold font-mono">
-              #{installment.numero_cuota}
-            </Text>
-          </View>
-          <View className="flex-row items-center">
-            <Calendar size={13} color="#9CA3AF" />
-            <Text className="text-zinc-400 text-xs font-medium ml-1.5">
-              {formatDateFriendly(installment.fecha_vencimiento)}
-            </Text>
-          </View>
+      <CoverImage source={img.source} focusY={img.focusY} style={StyleSheet.absoluteFill} />
+      <LinearGradient pointerEvents="none" colors={tintByTone[img.tone]} locations={tintLocations} style={StyleSheet.absoluteFill} />
+
+      <View style={{ minHeight: 320, padding: 16, gap: 14 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <Chip glass tone={badge.tone} label={badge.label} icon={badge.icon} />
+          <Chip
+            glass
+            label={`#${installment.numero_cuota} · ${formatDateFriendly(installment.fecha_vencimiento)}`}
+            icon={<Calendar size={12} color={colors.warm} />}
+          />
         </View>
 
-        <View className="flex-row items-center gap-1.5">
-          {getStatusBadge()}
-          {onPress && <ChevronRight size={15} color="#6B7280" />}
-        </View>
-      </View>
+        <View style={{ flex: 1 }} />
 
-      {/* Montos Desglosados */}
-      <View className="bg-[#0A0B10] rounded-xl p-3 border border-[#161722] mb-2">
-        <View className="flex-row justify-between items-center mb-1">
-          <Text className="text-zinc-500 text-xs">Obligación del periodo:</Text>
-          <Text className="text-white text-sm font-bold font-mono">
+        <View style={{ gap: 4 }}>
+          <Text style={{ color: '#D6D6DA', fontFamily: fonts.regular, fontSize: 12 }}>Obligación del periodo:</Text>
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+            style={{ color: colors.warm, fontFamily: fonts.semibold, fontSize: 34, lineHeight: 38, letterSpacing: -1.4 }}
+          >
             {formatCOP(totalEsperado)}
           </Text>
         </View>
 
-        <View className="flex-row justify-between items-center text-[11px] pt-1 border-t border-[#161722]">
-          <Text className="text-zinc-400 text-[11px]">
-            Capital:{' '}
-            {installment.capital_pagado > installment.capital_esperado
-              ? `${formatCOP(installment.capital_pagado)} abonado`
-              : formatCOP(installment.capital_esperado)}
-          </Text>
-          <Text className="text-[#FF7854] text-[11px]">
-            Interés: {formatCOP(installment.interes_esperado)}
-          </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'stretch' }}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ color: '#C4C4C8', fontFamily: fonts.regular, fontSize: 12 }}>Capital:</Text>
+            <Text style={{ color: colors.warm, fontFamily: fonts.semibold, fontSize: 14 }}>{capitalText}</Text>
+          </View>
+          <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.18)', marginHorizontal: 16 }} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ color: '#C4C4C8', fontFamily: fonts.regular, fontSize: 12 }}>Interés:</Text>
+            <Text style={{ color: colors.warm, fontFamily: fonts.semibold, fontSize: 14 }}>{formatCOP(installment.interes_esperado)}</Text>
+          </View>
         </View>
 
         {installment.mora_acumulada > 0 && (
-          <View className="flex-row justify-between items-center pt-1 border-t border-[#161722]">
-            <Text className="text-rose-400 text-[11px]">Mora acumulada:</Text>
-            <Text className="text-rose-400 text-[11px] font-mono">
-              {formatCOP(installment.mora_acumulada)}
-            </Text>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              paddingVertical: 10,
+              paddingHorizontal: 14,
+              borderRadius: 999,
+              backgroundColor: 'rgba(255,107,94,0.2)',
+              borderWidth: 1,
+              borderColor: 'rgba(255,107,94,0.45)',
+            }}
+          >
+            <Text style={{ color: '#FFB0A8', fontFamily: fonts.regular, fontSize: 12 }}>Mora acumulada:</Text>
+            <Text style={{ color: '#FFB0A8', fontFamily: fonts.semibold, fontSize: 14 }}>{formatCOP(installment.mora_acumulada)}</Text>
           </View>
         )}
-      </View>
 
-      {/* Estado del Pago */}
-      <View className="flex-row justify-between items-center px-1">
-        <Text className="text-zinc-500 text-[11px]">
-          Recaudado:{' '}
-          <Text className="text-emerald-400 font-medium font-mono">
-            {formatCOP(totalPagado)}
+        <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.14)' }} />
+
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <Text style={{ color: '#C4C4C8', fontFamily: fonts.regular, fontSize: 12 }}>
+            Recaudado: <Text style={{ color: colors.warm, fontFamily: fonts.medium }}>{formatCOP(totalPagado)}</Text>
           </Text>
-        </Text>
-        {saldoRestante > 0 ? (
-          <Text className="text-zinc-400 text-[11px]">
-            Resta:{' '}
-            <Text className="text-white font-semibold font-mono">
-              {formatCOP(saldoRestante)}
+          {saldoRestante > 0 ? (
+            <Text style={{ color: '#C4C4C8', fontFamily: fonts.regular, fontSize: 12 }}>
+              Resta: <Text style={{ color: colors.warm, fontFamily: fonts.medium }}>{formatCOP(saldoRestante)}</Text>
             </Text>
-          </Text>
-        ) : (
-          <Text className="text-emerald-400 text-[11px] font-semibold">
-            Periodo liquidado
-          </Text>
-        )}
+          ) : (
+            <Text style={{ color: colors.okSoft, fontFamily: fonts.regular, fontSize: 12 }}>Periodo liquidado</Text>
+          )}
+        </View>
       </View>
-    </Pressable>
-    </Animated.View>
+    </AnimatedPressable>
   )
 }

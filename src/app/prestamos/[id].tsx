@@ -62,15 +62,15 @@ export default function DetallePrestamoScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1 bg-[#060709] items-center justify-center">
-        <ActivityIndicator size="small" color="#FF7854" />
+      <View className="flex-1 bg-[#0A0A0B] items-center justify-center">
+        <ActivityIndicator size="small" color="#F5F5F3" />
       </View>
     )
   }
 
   if (error || !loan) {
     return (
-      <View className="flex-1 bg-[#060709] px-6 justify-center items-center">
+      <View className="flex-1 bg-[#0A0A0B] px-6 justify-center items-center">
         <ErrorMessage
           message={error || 'No se encontró la información del préstamo solicitado.'}
           onRetry={loadAll}
