@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { View, Text, ActivityIndicator, Image, StyleSheet } from 'react-native'
 import Animated, {
   useSharedValue,
@@ -19,6 +19,8 @@ export const SplashScreen: React.FC = () => {
   const reducedMotion = useReducedMotion()
   const insets = useSafeAreaInsets()
   const pulse = useSharedValue(1)
+  // Tamaño real del contenedor: la foto se dibuja con medidas explícitas para que cubra toda la pantalla
+  const [size, setSize] = useState({ w: 0, h: 0 })
 
   // Pulso del logo: escala 1 → 1,05 → 1 en 2,4 s, en bucle. Sin pulso con movimiento reducido.
   useEffect(() => {
@@ -32,9 +34,18 @@ export const SplashScreen: React.FC = () => {
   }))
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.app, overflow: 'hidden' }}>
+    <View
+      style={{ flex: 1, backgroundColor: colors.app, overflow: 'hidden' }}
+      onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+    >
       {/* Foto de billetes a pantalla completa con velo que se oscurece hacia abajo */}
-      <Image source={images.bills} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      {size.h > 0 && (
+        <Image
+          source={images.bills}
+          style={{ position: 'absolute', top: 0, left: 0, width: size.w, height: size.h }}
+          resizeMode="cover"
+        />
+      )}
       <LinearGradient
         pointerEvents="none"
         colors={['rgba(10,10,11,0.72)', 'rgba(10,10,11,0.86)', colors.app]}
@@ -57,7 +68,7 @@ export const SplashScreen: React.FC = () => {
         {/* Centro: logo, marca y estado */}
         <Animated.View
           entering={reducedMotion ? undefined : FadeIn.duration(400)}
-          style={{ alignItems: 'center', gap: 24 }}
+          style={{ alignItems: 'center', gap: 24, alignSelf: 'stretch' }}
         >
           <View
             style={{
@@ -99,7 +110,7 @@ export const SplashScreen: React.FC = () => {
             </Animated.View>
           </View>
 
-          <View style={{ alignItems: 'center', gap: 14 }}>
+          <View style={{ alignItems: 'center', gap: 14, alignSelf: 'stretch' }}>
             <Text
               style={{
                 color: colors.warm,
@@ -114,10 +125,13 @@ export const SplashScreen: React.FC = () => {
               FEAT
             </Text>
             <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
               style={{
                 color: colors.warm,
                 fontFamily: fonts.semibold,
-                fontSize: 46,
+                fontSize: 44,
                 lineHeight: 50,
                 letterSpacing: -2,
                 textAlign: 'center',
