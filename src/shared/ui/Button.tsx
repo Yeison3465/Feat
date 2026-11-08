@@ -1,10 +1,10 @@
 import React from 'react'
-import { ActivityIndicator, StyleProp, Text, View, ViewStyle } from 'react-native'
+import { ActivityIndicator, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native'
 import { AnimatedPressable } from '../components/AnimatedPressable'
 import type { HapticKind } from '../haptics'
 import { colors, fonts } from '../theme/tokens'
 
-export type ButtonVariant = 'solid' | 'ghost' | 'danger'
+export type ButtonVariant = 'solid' | 'ghost' | 'danger' | 'success'
 export type ButtonSize = 'sm' | 'md' | 'lg'
 
 interface ButtonProps {
@@ -39,11 +39,52 @@ export const Button: React.FC<ButtonProps> = ({
   style,
   accessibilityLabel,
 }) => {
-  const bg = variant === 'solid' ? colors.warm : variant === 'danger' ? colors.danger : colors.card2
-  const fg = variant === 'ghost' ? colors.warm : '#000000'
+  const bg =
+    variant === 'solid' ? colors.warm : variant === 'danger' ? colors.danger : variant === 'success' ? colors.okSoft : colors.card2
+  const fg = variant === 'ghost' ? colors.warm : variant === 'success' ? '#06220F' : '#000000'
   const inactive = disabled || loading
+
+  // Las propiedades de layout (flex, ancho, márgenes) van al contenedor animado que es el hijo real del padre;
+  // si se aplicaran al botón interno, un `flex: 1` colapsaría su alto (el contenedor no tiene tamaño propio).
+  const {
+    flex,
+    flexGrow,
+    flexShrink,
+    flexBasis,
+    width,
+    minWidth,
+    maxWidth,
+    alignSelf,
+    margin,
+    marginTop,
+    marginBottom,
+    marginLeft,
+    marginRight,
+    marginHorizontal,
+    marginVertical,
+    ...innerStyle
+  } = (StyleSheet.flatten(style) ?? {}) as ViewStyle
+  const containerStyle: ViewStyle = {
+    flex,
+    flexGrow,
+    flexShrink,
+    flexBasis,
+    width,
+    minWidth,
+    maxWidth,
+    alignSelf,
+    margin,
+    marginTop,
+    marginBottom,
+    marginLeft,
+    marginRight,
+    marginHorizontal,
+    marginVertical,
+  }
+
   return (
     <AnimatedPressable
+      containerStyle={containerStyle}
       onPress={onPress}
       disabled={inactive}
       haptic={haptic}
@@ -63,7 +104,7 @@ export const Button: React.FC<ButtonProps> = ({
           flexDirection: 'row',
           opacity: disabled ? 0.4 : 1,
         },
-        style,
+        innerStyle,
       ]}
     >
       {loading ? (

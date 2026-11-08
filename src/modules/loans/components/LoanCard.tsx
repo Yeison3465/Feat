@@ -1,5 +1,6 @@
 import React from 'react'
 import { View, Text, StyleSheet } from 'react-native'
+import Animated, { SharedValue, useAnimatedStyle } from 'react-native-reanimated'
 import { useRouter } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Calendar, ArrowRight, AlertTriangle, CheckCircle2 } from 'lucide-react-native'
@@ -16,11 +17,16 @@ import { colors, fonts } from '../../../shared/theme/tokens'
 
 interface LoanCardProps {
   readonly loan: LoanWithDetails
+  // «list»: tarjeta de lista (toda tocable). «carousel»: versión compacta para el carrusel circular
+  // (el carrusel decide qué hace el toque) con la foto desplazable para el efecto de profundidad.
+  readonly variant?: 'list' | 'carousel'
+  readonly imageOffset?: SharedValue<number>
 }
 
 // Tarjeta de préstamo con foto según su estado (mora > completado > exento > activo)
-export const LoanCard: React.FC<LoanCardProps> = ({ loan }) => {
+export const LoanCard: React.FC<LoanCardProps> = ({ loan, variant = 'list', imageOffset }) => {
   const router = useRouter()
+  const compact = variant === 'carousel'
   const borrowerName = loan.persona?.nombre || 'Prestatario'
   const isExempt = !!loan.persona?.exento_interes_ordinario || loan.tasa_mensual === 0
   const shortCode = `PR-${loan.id.slice(0, 4).toUpperCase()}`
@@ -53,15 +59,22 @@ export const LoanCard: React.FC<LoanCardProps> = ({ loan }) => {
       ? { label: 'En mora', tone: 'danger' as const, icon: <AlertTriangle size={12} color="#FFB8B0" /> }
       : { label: 'Activo', tone: 'neutral' as const, icon: null }
 
-  return (
-    <AnimatedPressable
-      onPress={() => router.push(`/prestamos/${loan.id}`)}
-      accessibilityRole="button"
-      accessibilityLabel={`Préstamo de ${borrowerName}, ${status.label}. Abrir detalle`}
-      containerClassName="mb-4"
-      style={{ borderRadius: 32, overflow: 'hidden', borderWidth: 1, borderColor: colors.line, backgroundColor: colors.app }}
-    >
-      <CoverImage source={img.source} focusY={img.focusY} style={StyleSheet.absoluteFill} />
+  // Parallax: la foto (más ancha que la tarjeta) se desplaza a distinta velocidad que la tarjeta
+  const imageStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: imageOffset ? imageOffset.value : 0 }],
+  }))
+
+  const body = (
+    <>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          compact ? { position: 'absolute', top: 0, bottom: 0, left: -30, right: -30 } : StyleSheet.absoluteFill,
+          imageStyle,
+        ]}
+      >
+        <CoverImage source={img.source} focusY={img.focusY} style={StyleSheet.absoluteFill} />
+      </Animated.View>
       <LinearGradient
         pointerEvents="none"
         colors={tintByTone[img.tone]}
@@ -69,12 +82,12 @@ export const LoanCard: React.FC<LoanCardProps> = ({ loan }) => {
         style={StyleSheet.absoluteFill}
       />
 
-      <View style={{ minHeight: 440, padding: 16, gap: 16 }}>
+      <View style={{ minHeight: compact ? undefined : 440, flex: compact ? 1 : undefined, padding: compact ? 14 : 16, gap: compact ? 12 : 16 }}>
         {/* Estado y código */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Chip glass tone={status.tone} label={status.label} icon={status.icon} />
-            {isExempt && <Chip glass tone="warn" label="Exento" />}
+            {isExempt && !compact && <Chip glass tone="warn" label="Exento" />}
           </View>
           <Chip glass label={`#${shortCode}`} />
         </View>
@@ -97,7 +110,7 @@ export const LoanCard: React.FC<LoanCardProps> = ({ loan }) => {
         {/* Saldo exigible destacado */}
         <View style={{ gap: 4 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <Text style={{ color: '#C4C4C8', fontFamily: fonts.regular, fontSize: 12 }}>
+            <Text style={{ color: '#C4C4C8', fontFamily: fonts.regular, fontSize: 12, flexShrink: 1 }}>
               {proximaCuota ? 'Saldo próxima obligación' : 'Capital total adeudado'}
             </Text>
             {proximaCuota && (
@@ -114,7 +127,14 @@ export const LoanCard: React.FC<LoanCardProps> = ({ loan }) => {
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.7}
-              style={{ color: colors.warm, fontFamily: fonts.semibold, fontSize: 40, lineHeight: 42, letterSpacing: -1.8, flexShrink: 1 }}
+              style={{
+                color: colors.warm,
+                fontFamily: fonts.semibold,
+                fontSize: compact ? 34 : 40,
+                lineHeight: compact ? 36 : 42,
+                letterSpacing: compact ? -1.5 : -1.8,
+                flexShrink: 1,
+              }}
             >
               {formatCOP(saldoExigible)}
             </Text>
@@ -167,6 +187,25 @@ export const LoanCard: React.FC<LoanCardProps> = ({ loan }) => {
           </View>
         </View>
       </View>
+    </>
+  )
+
+  const frame = { borderRadius: 32, overflow: 'hidden' as const, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.app }
+
+  // En el carrusel la tarjeta la envuelve el carrusel (decide si abre el detalle o trae la tarjeta al centro)
+  if (compact) {
+    return <View style={[frame, { flex: 1 }]}>{body}</View>
+  }
+
+  return (
+    <AnimatedPressable
+      onPress={() => router.push(`/prestamos/${loan.id}`)}
+      accessibilityRole="button"
+      accessibilityLabel={`Préstamo de ${borrowerName}, ${status.label}. Abrir detalle`}
+      containerClassName="mb-4"
+      style={frame}
+    >
+      {body}
     </AnimatedPressable>
   )
 }

@@ -1,159 +1,139 @@
-import React from 'react'
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  FlatList,
-  RefreshControl,
-  ActivityIndicator,
-} from 'react-native'
+import React, { useEffect, useRef, useState } from 'react'
+import { View, FlatList, RefreshControl } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { Search, Plus, Users, X, RefreshCw } from 'lucide-react-native'
+import Animated, { useReducedMotion } from 'react-native-reanimated'
+import { Plus, Users, RefreshCw } from 'lucide-react-native'
 import { usePeople } from '../../modules/people/hooks/usePeople'
 import { PersonCard } from '../../modules/people/components/PersonCard'
 import { ErrorMessage } from '../../shared/components/ErrorMessage'
 import { SkeletonCardList } from '../../shared/components/SkeletonBox'
-import { AnimatedPressable } from '../../shared/components/AnimatedPressable'
+import { AppText } from '../../shared/ui/AppText'
+import { Button } from '../../shared/ui/Button'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { SearchField } from '../../shared/ui/SearchField'
+import { TopBar } from '../../shared/ui/TopBar'
+import { screenEnter } from '../../shared/motion'
+import { colors } from '../../shared/theme/tokens'
 
 export default function PersonasScreen() {
   const router = useRouter()
-  const {
-    people,
-    loading,
-    refreshing,
-    error,
-    searchQuery,
-    setSearchQuery,
-    reload,
-  } = usePeople()
+  const reduced = useReducedMotion()
+  const { people, loading, refreshing, error, searchQuery, setSearchQuery, reload } = usePeople()
+
+  // Las filas solo se animan al abrir la pantalla (no al buscar)
+  const [animateIn, setAnimateIn] = useState(true)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    timer.current = setTimeout(() => setAnimateIn(false), 2500)
+    return () => {
+      if (timer.current) clearTimeout(timer.current)
+    }
+  }, [])
+
+  const header = (
+    <View style={{ gap: 20 }}>
+      <Animated.View entering={screenEnter(0, reduced)}>
+        <TopBar />
+      </Animated.View>
+
+      {/* Título y botón crear */}
+      <Animated.View
+        entering={screenEnter(1, reduced)}
+        style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, paddingTop: 12, paddingHorizontal: 4 }}
+      >
+        <View style={{ gap: 10, flex: 1 }}>
+          <AppText variant="title" accessibilityRole="header">
+            Personas
+          </AppText>
+          <AppText variant="body" style={{ fontSize: 15, lineHeight: 22 }}>
+            Directorio privado de prestatarios
+          </AppText>
+        </View>
+        <Button
+          label="Crear"
+          onPress={() => router.push('/personas/crear')}
+          icon={<Plus size={16} color="#000000" />}
+          style={{ paddingLeft: 14, paddingRight: 18 }}
+        />
+      </Animated.View>
+
+      {/* Búsqueda */}
+      <Animated.View entering={screenEnter(2, reduced)}>
+        <SearchField
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Buscar por nombre o nota privada..."
+          accessibilityLabel="Buscar personas"
+        />
+      </Animated.View>
+
+      {/* Contador informativo */}
+      {!loading && !error && (
+        <Animated.View entering={screenEnter(3, reduced)} style={{ gap: 2, paddingHorizontal: 4, marginTop: -6 }}>
+          <AppText variant="lbl" tone="muted2">
+            {people.length} {people.length === 1 ? 'persona registrada' : 'personas registradas'}
+          </AppText>
+          {searchQuery.length > 0 && (
+            <AppText variant="lbl" tone="warm">
+              Filtrado por: “{searchQuery}”
+            </AppText>
+          )}
+        </Animated.View>
+      )}
+    </View>
+  )
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#060709' }} edges={['top']} className="flex-1 bg-[#060709]">
-      <View className="px-6 pt-4 pb-2">
-        {/* Header Superior con Botón Crear */}
-        <View className="flex-row items-center justify-between mb-2">
-          <View>
-            <Text className="text-white text-3xl font-bold tracking-tight">
-              Personas
-            </Text>
-            <Text className="text-zinc-400 text-xs mt-0.5">
-              Directorio privado de prestatarios
-            </Text>
-          </View>
-
-          <AnimatedPressable
-            onPress={() => router.push('/personas/crear')}
-            className="flex-row items-center bg-[#D34524] active:bg-[#E54F2C] px-3.5 py-2 rounded-xl shadow-md shadow-[#D34524]/20"
-          >
-            <Plus size={16} color="#FFFFFF" strokeWidth={2.5} />
-            <Text className="text-white text-xs font-bold ml-1">
-              Crear
-            </Text>
-          </AnimatedPressable>
-        </View>
-
-        {/* Barra de Búsqueda */}
-        <View className="flex-row items-center px-3.5 h-11 bg-[#12131A] border border-[#1E2030] rounded-xl my-3">
-          <Search size={16} color="#6B7280" />
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Buscar por nombre o nota privada..."
-            placeholderTextColor="#4B5563"
-            className="flex-1 ml-2.5 text-white text-xs"
-          />
-          {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
-              <X size={15} color="#9CA3AF" />
-            </Pressable>
-          )}
-        </View>
-
-        {/* Contador Informativo */}
-        {!loading && !error && (
-          <View className="flex-row items-center justify-between mb-2 px-1">
-            <Text className="text-zinc-500 text-[11px] font-mono">
-              {people.length} {people.length === 1 ? 'persona registrada' : 'personas registradas'}
-            </Text>
-            {searchQuery.length > 0 && (
-              <Text className="text-[#FF7854] text-[11px]">
-                Filtrado por: "{searchQuery}"
-              </Text>
-            )}
-          </View>
-        )}
-      </View>
-
-      {/* Contenido / Listado */}
-      {loading && !refreshing ? (
-        <View className="flex-1 px-6 pt-2">
-          <SkeletonCardList count={4} />
-        </View>
-      ) : error ? (
-        <View className="flex-1 px-6 justify-center items-center">
-          <ErrorMessage message={error} onRetry={reload} />
-          <Pressable
-            onPress={reload}
-            className="mt-4 flex-row items-center bg-[#151622] px-4 py-2 rounded-xl border border-[#232433]"
-          >
-            <RefreshCw size={14} color="#FF7854" />
-            <Text className="text-[#FF7854] text-xs font-semibold ml-2">
-              Reintentar
-            </Text>
-          </Pressable>
-        </View>
-      ) : (
-        <FlatList
-          data={people}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <PersonCard person={item} />}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24, flexGrow: 1 }}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={reload}
-              tintColor="#FF7854"
-              colors={['#FF7854']}
-            />
-          }
-          ListEmptyComponent={
-            <View className="flex-1 items-center justify-center py-16">
-              <View className="w-16 h-16 rounded-2xl bg-[#12131A] border border-[#1E2030] items-center justify-center mb-4">
-                <Users size={28} color="#6B7280" />
-              </View>
-              <Text className="text-white text-base font-bold mb-1">
-                {searchQuery.length > 0 ? 'Sin resultados' : 'Directorio vacío'}
-              </Text>
-              <Text className="text-zinc-400 text-xs text-center max-w-[260px] leading-4 mb-5">
-                {searchQuery.length > 0
-                  ? `No se encontraron personas que coincidan con "${searchQuery}".`
-                  : 'Aún no has registrado prestatarios en tu cartera privada.'}
-              </Text>
-              {searchQuery.length > 0 ? (
-                <Pressable
-                  onPress={() => setSearchQuery('')}
-                  className="bg-[#1A1B26] border border-[#252738] active:bg-[#252738] px-4 py-2.5 rounded-xl"
-                >
-                  <Text className="text-[#FF7854] text-xs font-bold">
-                    Limpiar búsqueda
-                  </Text>
-                </Pressable>
-              ) : (
-                <Pressable
-                  onPress={() => router.push('/personas/crear')}
-                  className="bg-[#D34524] active:bg-[#E54F2C] px-5 py-2.5 rounded-xl shadow-lg shadow-[#D34524]/20"
-                >
-                  <Text className="text-white text-xs font-bold">
-                    + Nueva persona
-                  </Text>
-                </Pressable>
-              )}
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.app }} edges={['top']}>
+      <FlatList
+        data={loading || error ? [] : people}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item, index }) =>
+          animateIn && index < 6 && !reduced ? (
+            <Animated.View entering={screenEnter(index + 2, reduced)}>
+              <PersonCard person={item} />
+            </Animated.View>
+          ) : (
+            <PersonCard person={item} />
+          )
+        }
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, flexGrow: 1 }}
+        ListHeaderComponent={header}
+        ListHeaderComponentStyle={{ marginBottom: 16 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.warm} colors={[colors.warm]} progressBackgroundColor={colors.card2} />
+        }
+        ListEmptyComponent={
+          loading && !refreshing ? (
+            <View key="loading">
+              <SkeletonCardList count={4} />
             </View>
-          }
-        />
-      )}
+          ) : error ? (
+            <View key="error" style={{ alignItems: 'center', gap: 14, paddingTop: 24 }}>
+              <ErrorMessage message={error} onRetry={reload} />
+              <Button label="Reintentar" variant="ghost" onPress={reload} icon={<RefreshCw size={16} color={colors.warm} />} />
+            </View>
+          ) : (
+            <EmptyState
+              icon={<Users size={28} color={colors.warm} />}
+              title={searchQuery.length > 0 ? 'Sin resultados' : 'Directorio vacío'}
+              text={
+                searchQuery.length > 0
+                  ? `No se encontraron personas que coincidan con "${searchQuery}".`
+                  : 'Aún no has registrado prestatarios en tu cartera privada.'
+              }
+              action={
+                searchQuery.length > 0
+                  ? { label: 'Limpiar búsqueda', variant: 'ghost', onPress: () => setSearchQuery('') }
+                  : { label: '+ Nueva persona', onPress: () => router.push('/personas/crear') }
+              }
+            />
+          )
+        }
+      />
     </SafeAreaView>
   )
 }

@@ -13,7 +13,7 @@ interface ProgressBarProps {
   readonly style?: StyleProp<ViewStyle>
 }
 
-// Barra de progreso: el relleno crece de izquierda a derecha al cargar (900 ms, retardo 260 ms).
+// Barra de progreso: el relleno crece de izquierda a derecha al cargar (1,2 s, retardo 300 ms).
 export const ProgressBar: React.FC<ProgressBarProps> = ({
   percent,
   fill = colors.warm,
@@ -30,7 +30,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
       progress.value = 1
       return
     }
-    progress.value = withDelay(260, withTiming(1, { duration: 900, easing: EASE_OUT }))
+    progress.value = withDelay(300, withTiming(1, { duration: 1200, easing: EASE_OUT }))
   }, [reduced, progress])
 
   const fillStyle = useAnimatedStyle(() => ({

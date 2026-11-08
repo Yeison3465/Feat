@@ -13,6 +13,8 @@ interface AnimatedPressableProps extends PressableProps {
   readonly children: React.ReactNode
   readonly className?: string
   readonly containerClassName?: string
+  // Estilo del contenedor animado (aquí van las propiedades de layout: flex, ancho, márgenes)
+  readonly containerStyle?: StyleProp<ViewStyle>
   readonly style?: StyleProp<ViewStyle>
   readonly scaleTo?: number
   // Háptico opcional al confirmar la pulsación (no al presionar)
@@ -23,6 +25,7 @@ export const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
   children,
   className,
   containerClassName,
+  containerStyle,
   style,
   scaleTo = PRESS_SCALE,
   haptic: hapticKind,
@@ -60,7 +63,7 @@ export const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
   }
 
   return (
-    <Animated.View style={animatedStyle} className={containerClassName}>
+    <Animated.View style={[animatedStyle, containerStyle]} className={containerClassName}>
       <Pressable
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}

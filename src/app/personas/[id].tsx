@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { View, ActivityIndicator } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { usePeople } from '../../modules/people/hooks/usePeople'
@@ -18,6 +18,8 @@ export default function DetallePersonaScreen() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  // Mientras se elimina (y justo después) no se vuelve a consultar la persona: ya no existe y daría un error falso
+  const deletingRef = useRef(false)
 
   const cachedPerson = id ? getPersonById(id) : undefined
   const [person, setPerson] = useState<Person | null>(cachedPerson ?? null)
@@ -27,7 +29,7 @@ export default function DetallePersonaScreen() {
   const [isEditing, setIsEditing] = useState(false)
 
   const loadPerson = useCallback(async () => {
-    if (!id) return
+    if (!id || deletingRef.current) return
     try {
       if (!cachedPerson) setLoading(true)
       setError(null)
@@ -43,6 +45,7 @@ export default function DetallePersonaScreen() {
   }, [id, cachedPerson])
 
   useEffect(() => {
+    if (deletingRef.current) return
     if (!cachedPerson) {
       loadPerson()
     } else {
@@ -75,15 +78,15 @@ export default function DetallePersonaScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1 bg-[#060709] items-center justify-center">
-        <ActivityIndicator size="small" color="#FF7854" />
+      <View className="flex-1 bg-[#0A0A0B] items-center justify-center">
+        <ActivityIndicator size="small" color="#F5F5F3" />
       </View>
     )
   }
 
   if (error || !person) {
     return (
-      <View className="flex-1 bg-[#060709] px-6 justify-center items-center">
+      <View className="flex-1 bg-[#0A0A0B] px-6 justify-center items-center">
         <ErrorMessage
           message={error || 'No se encontró la información de la persona.'}
           onRetry={loadPerson}
@@ -106,6 +109,7 @@ export default function DetallePersonaScreen() {
 
   const handleConfirmDelete = async () => {
     try {
+      deletingRef.current = true
       setDeleting(true)
       setDeleteError(null)
       await deletePerson(person.id)
@@ -114,6 +118,7 @@ export default function DetallePersonaScreen() {
       setShowDeleteConfirm(false)
       router.back()
     } catch (err: any) {
+      deletingRef.current = false
       setDeleteError(err.message || 'Error al eliminar la persona.')
       // Puede haber borrado algunos préstamos antes de fallar
       reloadLoans()
@@ -124,7 +129,7 @@ export default function DetallePersonaScreen() {
 
   const deleteMessage =
     personLoansCount > 0
-      ? `${person.nombre} tiene ${personLoansCount} ${personLoansCount === 1 ? 'préstamo' : 'préstamos'}. Se eliminarán también, junto con sus cuotas, pagos y movimientos. Esta acción no se puede deshacer. Si solo quieres ocultarla, usa "Archivar".`
+      ? `${person.nombre} tiene ${personLoansCount} ${personLoansCount === 1 ? 'préstamo' : 'préstamos'}. Se eliminarán también, junto con sus cuotas, pagos y movimientos. Esta acción no se puede deshacer.`
       : `Se eliminará a ${person.nombre} del directorio. Esta acción no se puede deshacer.`
 
   return (

@@ -1,87 +1,52 @@
 import React from 'react'
-import { View, Text, Pressable } from 'react-native'
+import { View } from 'react-native'
 import { useRouter } from 'expo-router'
-import { ChevronRight, Phone, ShieldAlert } from 'lucide-react-native'
+import { ArrowRight, Phone } from 'lucide-react-native'
 import { Person } from '../types'
-import { getInitials } from '../../../shared/utils/initials'
-import Animated, {
-  FadeInDown,
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  useReducedMotion,
-} from 'react-native-reanimated'
+import { AnimatedPressable } from '../../../shared/components/AnimatedPressable'
+import { AppText } from '../../../shared/ui/AppText'
+import { Avatar } from '../../../shared/ui/Avatar'
+import { Card } from '../../../shared/ui/Card'
+import { Chip } from '../../../shared/ui/Chip'
+import { colors } from '../../../shared/theme/tokens'
 
 interface PersonCardProps {
   readonly person: Person
 }
 
+// Fila de persona en negro laca: iniciales, nombre, teléfono y marca de exención
 export const PersonCard: React.FC<PersonCardProps> = ({ person }) => {
   const router = useRouter()
-  const reducedMotion = useReducedMotion()
-  const scale = useSharedValue(1)
-  const scaleStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }))
-  const initials = getInitials(person.nombre)
 
   return (
-    <Animated.View
-      entering={reducedMotion ? undefined : FadeInDown.duration(420).springify().damping(18).stiffness(160)}
-      style={scaleStyle}
+    <AnimatedPressable
+      onPress={() => router.push(`/personas/${person.id}`)}
+      accessibilityRole="button"
+      accessibilityLabel={`Abrir a ${person.nombre}`}
+      containerClassName="mb-3"
     >
-      <Pressable
-        onPressIn={() => {
-          if (!reducedMotion) scale.value = withSpring(0.98, { damping: 16, stiffness: 300 })
-        }}
-        onPressOut={() => {
-          if (!reducedMotion) scale.value = withSpring(1, { damping: 16, stiffness: 300 })
-        }}
-        onPress={() => router.push(`/personas/${person.id}`)}
-        className="w-full bg-[#12131C] border border-[#232433] active:border-[#383A4F] rounded-2xl p-4 mb-3 flex-row items-center justify-between shadow-lg shadow-black/40"
-      >
-        <View className="flex-row items-center flex-1 mr-3">
-          {/* Avatar con Iniciales */}
-          <View className="w-12 h-12 rounded-xl bg-[#1A1215] border border-[#3A1F24] items-center justify-center mr-3.5 shadow-sm">
-            <Text className="text-[#FF7854] text-sm font-bold font-mono">
-              {initials}
-            </Text>
-          </View>
+      <Card variant="ink" style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 }}>
+        <Avatar name={person.nombre} size={56} />
 
-          {/* Información Principal */}
-          <View className="flex-1">
-            <Text
-              numberOfLines={1}
-              className="text-white text-[15px] font-bold tracking-tight mb-1"
-            >
-              {person.nombre}
-            </Text>
-
-            <View className="flex-row items-center flex-wrap gap-2">
-              {person.telefono && (
-                <View className="flex-row items-center">
-                  <Phone size={12} color="#9CA3AF" />
-                  <Text className="text-stone-400 text-xs ml-1 font-mono">
-                    {person.telefono}
-                  </Text>
-                </View>
-              )}
-
-              {person.exento_interes_ordinario && (
-                <View className="bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full flex-row items-center">
-                  <ShieldAlert size={10} color="#F59E0B" />
-                  <Text className="text-amber-400 text-[10px] font-semibold ml-1">
-                    Exento int. ord.
-                  </Text>
-                </View>
-              )}
-            </View>
+        <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
+          <AppText variant="h" numberOfLines={1} style={{ fontSize: 17 }}>
+            {person.nombre}
+          </AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+            {person.telefono ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Phone size={13} color={colors.muted2} />
+                <AppText variant="lbl">{person.telefono}</AppText>
+              </View>
+            ) : null}
+            {person.exento_interes_ordinario && <Chip tone="warn" label="Exento int. ord." />}
           </View>
         </View>
 
-        <ChevronRight size={18} color="#6B7280" />
-      </Pressable>
-    </Animated.View>
+        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card2, alignItems: 'center', justifyContent: 'center' }}>
+          <ArrowRight size={16} color={colors.warm} />
+        </View>
+      </Card>
+    </AnimatedPressable>
   )
 }
-

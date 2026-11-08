@@ -5,8 +5,8 @@ import { colors, fonts } from '../theme/tokens'
 
 interface AvatarProps {
   readonly name: string
-  // 44, 48 o 56 px (la app no guarda fotos de personas: se muestran las iniciales)
-  readonly size?: 44 | 48 | 56
+  // 44 a 88 px (la app no guarda fotos de personas: se muestran las iniciales)
+  readonly size?: number
   // Anillo dorado (tarjetas de vencimiento sobre blanco)
   readonly ring?: boolean
   readonly style?: StyleProp<ViewStyle>
@@ -31,7 +31,7 @@ export const Avatar: React.FC<AvatarProps> = ({ name, size = 44, ring = false, s
       style,
     ]}
   >
-    <Text style={{ color: ring ? colors.onLight : colors.warm, fontFamily: fonts.medium, fontSize: size > 48 ? 18 : 15 }}>
+    <Text style={{ color: ring ? colors.onLight : colors.warm, fontFamily: fonts.medium, fontSize: size >= 80 ? 26 : size > 48 ? 18 : 15 }}>
       {getInitials(name)}
     </Text>
   </View>

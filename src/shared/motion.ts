@@ -19,11 +19,11 @@ export const DURATION = {
   sheetOut: 340,
   snackIn: 420,
   snackOut: 240,
-  screenIn: 600,
-  stagger: 60,
-  staggerMax: 420,
-  countUp: 1000,
-  fade: 240,
+  screenIn: 800,
+  stagger: 90,
+  staggerMax: 630,
+  countUp: 1400,
+  fade: 300,
 } as const
 
 // Resortes (solo cuando hay gesto con dedo)

@@ -100,7 +100,7 @@ function buildMonotoneCubicPath(points: { x: number; y: number }[]): string {
 
 const AnimatedRect = Animated.createAnimatedComponent(Rect)
 
-// Barra que crece desde la base (700 ms, ease-out) con 60 ms entre barras
+// Barra que crece desde la base (900 ms, ease-out) con 80 ms entre barras
 const GrowingBar: React.FC<{
   readonly x: number
   readonly width: number
@@ -119,7 +119,7 @@ const GrowingBar: React.FC<{
       return
     }
     grow.value = 0
-    grow.value = withDelay(160 + index * 60, withTiming(1, { duration: 700, easing: EASE_OUT }))
+    grow.value = withDelay(200 + index * 80, withTiming(1, { duration: 900, easing: EASE_OUT }))
   }, [replayKey, index, reduced, grow])
 
   const animatedProps = useAnimatedProps(() => {

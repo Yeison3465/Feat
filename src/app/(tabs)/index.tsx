@@ -6,7 +6,6 @@ import { LinearGradient } from 'expo-linear-gradient'
 import Animated, { useReducedMotion } from 'react-native-reanimated'
 import { Plus, Users, CalendarDays, CreditCard, ArrowRight, AlertTriangle } from 'lucide-react-native'
 import { useLoans } from '../../modules/loans/hooks/useLoans'
-import { useAuth } from '../../modules/auth/hooks/useAuth'
 import { LoanCard } from '../../modules/loans/components/LoanCard'
 import { DashboardPeriodSelector } from '../../modules/loans/components/DashboardPeriodSelector'
 import { AreaChartCard } from '../../modules/loans/components/AreaChartCard'
@@ -18,7 +17,7 @@ import { formatCOP } from '../../shared/utils/currency'
 import { SkeletonBox, SkeletonCardList } from '../../shared/components/SkeletonBox'
 import { AnimatedPressable } from '../../shared/components/AnimatedPressable'
 import { AppText } from '../../shared/ui/AppText'
-import { Avatar } from '../../shared/ui/Avatar'
+import { TopBar } from '../../shared/ui/TopBar'
 import { Button } from '../../shared/ui/Button'
 import { Card } from '../../shared/ui/Card'
 import { CoverImage } from '../../shared/ui/CoverImage'
@@ -44,7 +43,6 @@ const DashboardSkeleton: React.FC = () => (
 export default function DashboardScreen() {
   const router = useRouter()
   const reduced = useReducedMotion()
-  const { user } = useAuth()
   const {
     allLoans,
     metrics,
@@ -61,7 +59,6 @@ export default function DashboardScreen() {
   const recentLoans = allLoans.slice(0, 3)
   // Mientras llegan las consultas se muestra el esqueleto; los bloques entran cuando hay datos
   const ready = !(loading && !refreshing)
-  const profileName = (user?.email ?? 'Perfil').split('@')[0]
 
   // Cada bloque entra subiendo 14 px con fundido, escalonado de 40 ms en 40 ms (solo al abrir la pantalla)
   let blockIndex = 0
@@ -77,27 +74,8 @@ export default function DashboardScreen() {
         }
       >
         {/* Barra superior en píldora */}
-        <Animated.View
-          entering={enter()}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            padding: 6,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.line,
-            borderRadius: 999,
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.warm, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: colors.onLight, fontFamily: fonts.semibold, fontSize: 17, letterSpacing: -0.7 }}>P</Text>
-            </View>
-            <AppText variant="h">FEAT</AppText>
-          </View>
-          <Avatar name={profileName} size={44} />
+        <Animated.View entering={enter()}>
+          <TopBar />
         </Animated.View>
 
         {/* Título */}
