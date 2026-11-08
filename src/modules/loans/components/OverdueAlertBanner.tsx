@@ -79,7 +79,7 @@ export const OverdueAlertBanner: React.FC<OverdueAlertBannerProps> = ({
           >
             {personas}
           </Text>
-          <View style={{ alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: '#FFECE8' }}>
+          <View style={{ alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: '#F2F2EF' }}>
             <Text style={{ color: '#B3261E', fontFamily: fonts.medium, fontSize: 11, lineHeight: 14 }}>{cuotas}</Text>
           </View>
         </View>
