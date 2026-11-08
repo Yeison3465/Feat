@@ -1,28 +1,35 @@
 import React, { useState } from 'react'
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-} from 'react-native'
+import { View, Text, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native'
+import Animated, { useReducedMotion } from 'react-native-reanimated'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { Mail, CheckCircle, ArrowLeft, ArrowRight, Shield } from 'lucide-react-native'
+import { Mail, ArrowLeft, CheckCircle2, Clock } from 'lucide-react-native'
 import { useAuth } from '../hooks/useAuth'
 import { getSafeBottomInset } from '../../../shared/utils/responsive'
 import { ErrorMessage } from '../../../shared/components/ErrorMessage'
+import { Button } from '../../../shared/ui/Button'
+import { Card } from '../../../shared/ui/Card'
+import { Field } from '../../../shared/ui/Field'
+import { screenEnter } from '../../../shared/motion'
+import { haptic } from '../../../shared/haptics'
+import { colors, fonts } from '../../../shared/theme/tokens'
+import { AuthSecurityFooter } from './AuthSecurityFooter'
+
+const titleStyle = {
+  color: colors.warm,
+  fontFamily: fonts.semibold,
+  fontSize: 40,
+  lineHeight: 42,
+  letterSpacing: -1.8,
+} as const
 
 export const RecoveryForm: React.FC = () => {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const reduced = useReducedMotion()
   const { resetPassword, loading, error, clearError } = useAuth()
 
   const [email, setEmail] = useState('')
-  const [emailFocused, setEmailFocused] = useState(false)
   const [emailError, setEmailError] = useState<string | null>(null)
   const [submitted, setSubmitted] = useState(false)
 
@@ -47,6 +54,7 @@ export const RecoveryForm: React.FC = () => {
     if (!validate()) return
     const result = await resetPassword(email)
     if (result.success) {
+      haptic('success')
       setSubmitted(true)
     }
   }
@@ -54,180 +62,145 @@ export const RecoveryForm: React.FC = () => {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      className="flex-1 bg-[#07070A]"
+      style={{ flex: 1, backgroundColor: colors.app }}
     >
-      {/* Resplandor radial superior */}
-      <View
-        pointerEvents="none"
-        style={{
-          position: 'absolute',
-          top: -80,
-          left: '50%',
-          transform: [{ translateX: -150 }],
-          width: 300,
-          height: 300,
-          borderRadius: 150,
-          backgroundColor: 'rgba(180, 50, 25, 0.22)',
-          filter: Platform.OS === 'web' ? 'blur(70px)' : undefined,
-          opacity: 0.85,
-        }}
-      />
-
       <ScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          justifyContent: 'space-between',
-          paddingTop: Math.max(insets.top, 16),
-          paddingBottom: getSafeBottomInset(insets.bottom, 20),
-        }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: getSafeBottomInset(insets.bottom, 20) }}
         keyboardShouldPersistTaps="handled"
-        className="px-6 max-w-md mx-auto w-full"
       >
-        <View>
+        <View
+          style={{
+            flexGrow: 1,
+            width: '100%',
+            maxWidth: 448,
+            alignSelf: 'center',
+            gap: 28,
+            paddingHorizontal: 16,
+            paddingTop: Math.max(insets.top, 16) + 16,
+            paddingBottom: 28,
+          }}
+        >
           {/* Botón Volver */}
-          <Pressable
-            onPress={() => router.back()}
-            className="flex-row items-center mb-6 py-2"
-            hitSlop={10}
-          >
-            <ArrowLeft size={18} color="#9CA3AF" />
-            <Text className="text-stone-400 text-xs font-medium ml-2">
-              Volver a iniciar sesión
-            </Text>
-          </Pressable>
+          <Animated.View entering={screenEnter(0, reduced)} style={{ alignSelf: 'flex-start' }}>
+            <Button
+              label="Volver a iniciar sesión"
+              variant="ghost"
+              size="sm"
+              onPress={() => router.back()}
+              icon={<ArrowLeft size={16} color={colors.warm} />}
+            />
+          </Animated.View>
 
           {!submitted ? (
             /* PASO 1: Solicitud */
-            <>
-              <View className="mb-6">
-                <Text className="text-white text-3xl font-bold tracking-tight mb-2">
+            <Animated.View entering={screenEnter(1, reduced)} style={{ gap: 28 }}>
+              <View style={{ gap: 12, paddingHorizontal: 4 }}>
+                <Text accessibilityRole="header" style={titleStyle}>
                   Restablece tu acceso
                 </Text>
-                <Text className="text-stone-400 text-sm leading-5">
+                <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 15, lineHeight: 22 }}>
                   Ingresa el correo asociado a tu cuenta privada. Te enviaremos un enlace temporal.
                 </Text>
               </View>
 
-              <View className="bg-[#12131C] border border-[#232433] rounded-[28px] p-5 shadow-2xl shadow-black">
-                {error && <ErrorMessage message={error} onRetry={clearError} />}
+              {error && <ErrorMessage message={error} onRetry={clearError} />}
 
-                <View className="mb-6">
-                  <Text className="text-stone-300 text-xs font-medium mb-2 ml-1">
-                    Correo electrónico
-                  </Text>
-                  <View
-                    className={`flex-row items-center px-4 h-13 bg-[#08080E] rounded-2xl border transition-all ${
-                      emailError
-                        ? 'border-[#FB3758]'
-                        : emailFocused
-                        ? 'border-[#FF7854]'
-                        : 'border-[#232433]'
-                    }`}
-                    style={{ height: 50 }}
-                  >
-                    <Mail
-                      size={18}
-                      color={emailError ? '#FB3758' : emailFocused ? '#FF7854' : '#6B7280'}
-                    />
-                    <TextInput
-                      value={email}
-                      onChangeText={(text) => {
-                        setEmail(text)
-                        if (emailError) setEmailError(null)
-                        if (error) clearError()
-                      }}
-                      onFocus={() => setEmailFocused(true)}
-                      onBlur={() => setEmailFocused(false)}
-                      placeholder="alejandro@cartera.co"
-                      placeholderTextColor="#4B5563"
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      className="flex-1 ml-3 text-white text-[15px]"
-                    />
-                  </View>
-                  {emailError && (
-                    <Text className="text-[#FB3758] text-xs mt-1.5 ml-1">
-                      {emailError}
-                    </Text>
-                  )}
-                </View>
+              <Field
+                compact
+                label="Correo electrónico"
+                error={emailError}
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text)
+                  if (emailError) setEmailError(null)
+                  if (error) clearError()
+                }}
+                placeholder="alejandro@cartera.co"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                prefix={({ focused, error: bad }) => (
+                  <Mail size={16} color={bad ? colors.danger : focused ? colors.warm : colors.muted2} />
+                )}
+              />
 
-                <Pressable
-                  onPress={handleSubmit}
-                  disabled={loading}
-                  style={{ height: 52 }}
-                  className={`w-full rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#C94422]/20 active:bg-[#E54F2C] ${
-                    loading ? 'bg-[#C94422]/60' : 'bg-[#D34524]'
-                  }`}
-                >
-                  {loading ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <View className="flex-row items-center justify-center gap-2">
-                      <Text className="text-white text-[15px] font-bold tracking-wide">
-                        Enviar instrucciones
-                      </Text>
-                      <ArrowRight size={17} color="#FFFFFF" strokeWidth={2.5} />
-                    </View>
-                  )}
-                </Pressable>
-              </View>
-            </>
+              <Button
+                label="Enviar instrucciones"
+                size="lg"
+                onPress={handleSubmit}
+                loading={loading}
+                style={{ width: '100%' }}
+              />
+            </Animated.View>
           ) : (
             /* PASO 2: Confirmación tras envío */
-            <View className="bg-[#12131C] border border-[#232433] rounded-[28px] p-6 items-center shadow-2xl shadow-black my-4">
-              <View className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 items-center justify-center mb-4">
-                <CheckCircle size={32} color="#10B981" />
+            <Animated.View entering={screenEnter(0, reduced)} style={{ gap: 28 }}>
+              <View style={{ gap: 20, paddingHorizontal: 4, alignItems: 'flex-start' }}>
+                <View
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 36,
+                    backgroundColor: 'rgba(127,214,164,0.14)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <CheckCircle2 size={32} color={colors.ok} />
+                </View>
+                <Text accessibilityRole="header" style={titleStyle}>
+                  Correo enviado
+                </Text>
+                <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 15, lineHeight: 22 }}>
+                  Revisa tu bandeja de entrada. Enviamos un enlace de recuperación a:
+                </Text>
               </View>
 
-              <Text className="text-white text-xl font-bold mb-2 text-center">
-                Correo enviado
-              </Text>
-              <Text className="text-stone-300 text-sm text-center mb-1">
-                Revisa tu bandeja de entrada. Enviamos un enlace de recuperación a:
-              </Text>
-              <Text className="text-[#FF7854] text-sm font-semibold text-center mb-3">
-                {email}
-              </Text>
-              <Text className="text-stone-500 text-xs text-center mb-6">
-                El enlace expira en 15 minutos por motivos de seguridad.
-              </Text>
-
-              <Pressable
-                onPress={() => router.replace('/(auth)/login')}
-                style={{ height: 50 }}
-                className="w-full bg-[#D34524] active:bg-[#E54F2C] rounded-2xl items-center justify-center mb-3"
+              <Card
+                variant="ink"
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 16, paddingHorizontal: 18 }}
               >
-                <Text className="text-white text-sm font-bold">
-                  Volver a iniciar sesión
+                <Mail size={16} color={colors.warm} />
+                <Text selectable style={{ flex: 1, color: colors.warm, fontFamily: fonts.medium, fontSize: 15 }}>
+                  {email}
                 </Text>
-              </Pressable>
+              </Card>
 
-              <Pressable
-                onPress={() => setSubmitted(false)}
-                hitSlop={8}
-                className="py-2"
-              >
-                <Text className="text-stone-400 text-xs">
-                  ¿No recibiste el correo? <Text className="text-[#FF7854]">Reintentar</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 }}>
+                <Clock size={16} color={colors.muted2} />
+                <Text style={{ flex: 1, color: colors.muted, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16 }}>
+                  El enlace expira en 15 minutos por motivos de seguridad.
                 </Text>
-              </Pressable>
-            </View>
+              </View>
+
+              <View style={{ gap: 8, alignItems: 'center' }}>
+                <Button
+                  label="Volver a iniciar sesión"
+                  size="lg"
+                  onPress={() => router.replace('/(auth)/login')}
+                  style={{ width: '100%' }}
+                />
+                <Pressable
+                  onPress={() => setSubmitted(false)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  style={{ minHeight: 44, justifyContent: 'center' }}
+                >
+                  <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 13 }}>
+                    ¿No recibiste el correo?{' '}
+                    <Text style={{ color: colors.warm, fontFamily: fonts.medium }}>Reintentar</Text>
+                  </Text>
+                </Pressable>
+              </View>
+            </Animated.View>
           )}
-        </View>
 
-        {/* Footer */}
-        <View className="items-center mt-2 pb-2">
-          <View className="w-full bg-[#11121C] border border-[#1E2030] rounded-2xl p-3.5 flex-row items-center gap-3 mb-4">
-            <Shield size={18} color="#6B7280" />
-            <Text className="text-stone-400 text-xs flex-1 leading-4">
-              Acceso exclusivo para el titular. Los prestatarios no tienen acceso a esta aplicación.
-            </Text>
-          </View>
-          <Text className="text-stone-600 text-[11px] font-mono tracking-wider">
-            Sistema seguro · Moneda COP · v2.4
-          </Text>
+          <View style={{ flex: 1 }} />
+
+          <Animated.View entering={screenEnter(2, reduced)}>
+            <AuthSecurityFooter />
+          </Animated.View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

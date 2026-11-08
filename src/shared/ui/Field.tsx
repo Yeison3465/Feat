@@ -11,7 +11,11 @@ interface FieldProps extends Omit<TextInputProps, 'style'> {
   // Texto pequeño a la derecha de la etiqueta (por ejemplo «Obligatorio»)
   readonly hint?: string
   readonly error?: string | null
-  readonly prefix?: React.ReactNode
+  // Etiqueta pequeña (12 px gris) y separación de 8 px, como en el acceso
+  readonly compact?: boolean
+  readonly prefix?: React.ReactNode | ((state: { focused: boolean; error: boolean }) => React.ReactNode)
+  // Elemento al final del campo (por ejemplo el ojo de la contraseña)
+  readonly trailing?: React.ReactNode
   readonly suffix?: string
   readonly multiline?: boolean
   readonly containerStyle?: StyleProp<ViewStyle>
@@ -23,7 +27,9 @@ export const Field: React.FC<FieldProps> = ({
   label,
   hint,
   error,
+  compact = false,
   prefix,
+  trailing,
   suffix,
   multiline,
   containerStyle,
@@ -55,11 +61,19 @@ export const Field: React.FC<FieldProps> = ({
   const borderColor = error ? colors.danger : focused ? colors.warm : colors.line
 
   return (
-    <View style={[{ gap: 14 }, containerStyle]}>
+    <View style={[{ gap: compact ? 8 : 14 }, containerStyle]}>
       {(label || hint) && (
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
           {label ? (
-            <Text style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 14 }}>{label}</Text>
+            <Text
+              style={{
+                color: compact ? colors.muted : colors.warm,
+                fontFamily: fonts.medium,
+                fontSize: compact ? 12 : 14,
+              }}
+            >
+              {label}
+            </Text>
           ) : (
             <View />
           )}
@@ -75,7 +89,8 @@ export const Field: React.FC<FieldProps> = ({
             alignItems: multiline ? 'flex-start' : 'center',
             gap: 10,
             minHeight: 56,
-            paddingHorizontal: 18,
+            paddingLeft: 18,
+            paddingRight: trailing ? 8 : 18,
             backgroundColor: colors.card,
             borderWidth: 1,
             borderColor,
@@ -84,7 +99,7 @@ export const Field: React.FC<FieldProps> = ({
           shakeStyle,
         ]}
       >
-        {prefix}
+        {typeof prefix === 'function' ? prefix({ focused, error: !!error }) : prefix}
         <TextInput
           {...input}
           multiline={multiline}
@@ -112,6 +127,7 @@ export const Field: React.FC<FieldProps> = ({
         {suffix ? (
           <Text style={{ color: colors.muted2, fontFamily: fonts.medium, fontSize: 13 }}>{suffix}</Text>
         ) : null}
+        {trailing}
       </Animated.View>
       {error ? (
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>

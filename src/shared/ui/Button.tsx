@@ -13,6 +13,8 @@ interface ButtonProps {
   readonly variant?: ButtonVariant
   readonly size?: ButtonSize
   readonly icon?: React.ReactNode
+  // Icono después de la etiqueta (por ejemplo la flecha de «Iniciar sesión»)
+  readonly iconAfter?: React.ReactNode
   readonly loading?: boolean
   readonly disabled?: boolean
   readonly haptic?: HapticKind
@@ -30,6 +32,7 @@ export const Button: React.FC<ButtonProps> = ({
   variant = 'solid',
   size = 'md',
   icon,
+  iconAfter,
   loading = false,
   disabled = false,
   haptic,
@@ -77,6 +80,7 @@ export const Button: React.FC<ButtonProps> = ({
           >
             {label}
           </Text>
+          {iconAfter}
         </View>
       )}
     </AnimatedPressable>

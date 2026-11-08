@@ -2,30 +2,38 @@ import React, { useState } from 'react'
 import {
   View,
   Text,
-  TextInput,
   Pressable,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StyleSheet,
 } from 'react-native'
+import Animated, { useReducedMotion } from 'react-native-reanimated'
+import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { Mail, Lock, Eye, EyeOff, Shield, Wallet, ArrowRight } from 'lucide-react-native'
+import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react-native'
 import { useAuth } from '../hooks/useAuth'
 import { getSafeBottomInset } from '../../../shared/utils/responsive'
 import { ErrorMessage } from '../../../shared/components/ErrorMessage'
+import { AnimatedPressable } from '../../../shared/components/AnimatedPressable'
+import { Button } from '../../../shared/ui/Button'
+import { Field } from '../../../shared/ui/Field'
+import { CoverImage } from '../../../shared/ui/CoverImage'
+import { images } from '../../../shared/images'
+import { screenEnter } from '../../../shared/motion'
+import { colors, fonts } from '../../../shared/theme/tokens'
+import { AuthSecurityFooter } from './AuthSecurityFooter'
 
 export const LoginForm: React.FC = () => {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const reduced = useReducedMotion()
   const { signIn, loading, error, clearError } = useAuth()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [emailFocused, setEmailFocused] = useState(false)
-  const [passwordFocused, setPasswordFocused] = useState(false)
   const [emailError, setEmailError] = useState<string | null>(null)
   const [passwordError, setPasswordError] = useState<string | null>(null)
 
@@ -67,227 +75,154 @@ export const LoginForm: React.FC = () => {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={{ flex: 1, backgroundColor: '#060709' }}
-      className="flex-1 bg-[#060709]"
+      style={{ flex: 1, backgroundColor: colors.app }}
     >
-      {/* Resplandor radial superior idéntico a Figma */}
-      <View
-        pointerEvents="none"
-        style={{
-          position: 'absolute',
-          top: -60,
-          left: '50%',
-          transform: [{ translateX: -170 }],
-          width: 340,
-          height: 340,
-          borderRadius: 170,
-          backgroundColor: '#C94422',
-          opacity: 0.16,
-          ...(Platform.OS === 'web' ? { filter: 'blur(80px)' } : {}),
-        }}
-      />
-
       <ScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          justifyContent: 'space-between',
-          paddingTop: Math.max(insets.top, 16),
-          paddingBottom: getSafeBottomInset(insets.bottom, 20),
-        }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: getSafeBottomInset(insets.bottom, 20) }}
         keyboardShouldPersistTaps="handled"
-        className="px-6 max-w-md mx-auto w-full"
       >
-        {/* Cabecera / Marca Figma */}
-        <View className="items-center mt-3 mb-2">
-          {/* Isotipo con caja redondeada oscura y halo coral */}
-          <View
-            style={{
-              shadowColor: '#C94422',
-              shadowOffset: { width: 0, height: 6 },
-              shadowOpacity: 0.3,
-              shadowRadius: 14,
-              elevation: 8,
-            }}
-            className="w-14 h-14 rounded-2xl bg-[#191316] border border-[#2F191D] items-center justify-center mb-3"
-          >
-            <Wallet size={26} color="#FF7854" strokeWidth={2.2} />
-          </View>
-
-          {/* Badge FEAT con punto coral */}
-          <View className="flex-row items-center justify-center gap-1.5 mb-2">
-            <View className="w-1.5 h-1.5 rounded-full bg-[#E05335]" />
-            <Text className="text-zinc-400 text-xs font-mono font-bold tracking-widest uppercase">
-              FEAT
-            </Text>
-          </View>
-
-          {/* Título y Subtítulo */}
-          <Text className="text-white text-3xl font-bold tracking-tight text-center mb-1.5">
-            Acceso privado
-          </Text>
-          <Text className="text-zinc-400 text-sm text-center leading-5 max-w-[290px]">
-            Ingresa tus credenciales para administrar tu cartera.
-          </Text>
-        </View>
-
-        {/* Tarjeta del Formulario Elevada */}
-        <View className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-6 my-4 shadow-2xl shadow-black">
-          {error && <ErrorMessage message={error} onRetry={clearError} />}
-
-          {/* Campo: Correo Electrónico */}
-          <View className="mb-4">
-            <Text className="text-zinc-300 text-xs font-medium mb-2 ml-0.5">
-              Correo electrónico
-            </Text>
-            <View
-              className={`flex-row items-center px-4 bg-[#0A0B10] rounded-2xl border transition-all ${
-                emailError
-                  ? 'border-[#FB3758]'
-                  : emailFocused || email.length > 0
-                  ? 'border-[#D34524]'
-                  : 'border-[#232433]'
-              }`}
-              style={{ height: 52 }}
-            >
-              <Mail
-                size={18}
-                color={
-                  emailError
-                    ? '#FB3758'
-                    : emailFocused || email.length > 0
-                    ? '#FF7854'
-                    : '#6B7280'
-                }
+        <View style={{ flexGrow: 1, width: '100%', maxWidth: 448, alignSelf: 'center' }}>
+          {/* Cabecera: foto de billetes, FEAT centrado y título */}
+          <Animated.View entering={screenEnter(0, reduced)}>
+            <CoverImage source={images.bills} focusY={0.4} style={{ height: 272 + insets.top }}>
+              <LinearGradient
+                pointerEvents="none"
+                colors={['rgba(10,10,11,0.7)', 'rgba(10,10,11,0.76)', colors.app]}
+                locations={[0, 0.55, 1]}
+                style={StyleSheet.absoluteFill}
               />
-              <TextInput
+              <View
+                style={[
+                  StyleSheet.absoluteFill,
+                  { justifyContent: 'space-between', paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 18 },
+                ]}
+              >
+                <View />
+                <Text
+                  style={{
+                    color: colors.warm,
+                    fontFamily: fonts.light,
+                    fontSize: 32,
+                    lineHeight: 36,
+                    letterSpacing: 13.4,
+                    // El espaciado agrega un hueco al final: se compensa para centrar la palabra
+                    marginRight: -13.4,
+                    textAlign: 'center',
+                  }}
+                >
+                  FEAT
+                </Text>
+                <View style={{ gap: 12 }}>
+                  <Text
+                    accessibilityRole="header"
+                    style={{
+                      color: colors.warm,
+                      fontFamily: fonts.semibold,
+                      fontSize: 40,
+                      lineHeight: 42,
+                      letterSpacing: -1.8,
+                    }}
+                  >
+                    Acceso privado
+                  </Text>
+                  <Text style={{ color: '#C4C4C8', fontFamily: fonts.regular, fontSize: 14, lineHeight: 20 }}>
+                    Ingresa tus credenciales para administrar tu cartera.
+                  </Text>
+                </View>
+              </View>
+            </CoverImage>
+          </Animated.View>
+
+          <View style={{ flex: 1, gap: 16, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 28 }}>
+            <Animated.View entering={screenEnter(1, reduced)} style={{ gap: 16 }}>
+              {error && <ErrorMessage message={error} onRetry={clearError} />}
+
+              {/* Campo: Correo electrónico */}
+              <Field
+                compact
+                label="Correo electrónico"
+                error={emailError}
                 value={email}
                 onChangeText={(text) => {
                   setEmail(text)
                   if (emailError) setEmailError(null)
                   if (error) clearError()
                 }}
-                onFocus={() => setEmailFocused(true)}
-                onBlur={() => setEmailFocused(false)}
                 placeholder="alejandro@cartera.co"
-                placeholderTextColor="#4B5563"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
-                className="flex-1 ml-3 text-white text-[15px]"
+                autoComplete="email"
+                prefix={({ focused, error: bad }) => (
+                  <Mail size={16} color={bad ? colors.danger : focused ? colors.warm : colors.muted2} />
+                )}
               />
-            </View>
-            {emailError && (
-              <Text className="text-[#FB3758] text-xs mt-1.5 ml-1">
-                {emailError}
-              </Text>
-            )}
-          </View>
 
-          {/* Campo: Contraseña */}
-          <View className="mb-1">
-            <Text className="text-zinc-300 text-xs font-medium mb-2 ml-0.5">
-              Contraseña
-            </Text>
-            <View
-              className={`flex-row items-center px-4 bg-[#0A0B10] rounded-2xl border transition-all ${
-                passwordError
-                  ? 'border-[#FB3758]'
-                  : passwordFocused
-                  ? 'border-[#D34524]'
-                  : 'border-[#232433]'
-              }`}
-              style={{ height: 52 }}
-            >
-              <Lock
-                size={18}
-                color={
-                  passwordError
-                    ? '#FB3758'
-                    : passwordFocused
-                    ? '#FF7854'
-                    : '#6B7280'
-                }
-              />
-              <TextInput
+              {/* Campo: Contraseña */}
+              <Field
+                compact
+                label="Contraseña"
+                error={passwordError}
                 value={password}
                 onChangeText={(text) => {
                   setPassword(text)
                   if (passwordError) setPasswordError(null)
                   if (error) clearError()
                 }}
-                onFocus={() => setPasswordFocused(true)}
-                onBlur={() => setPasswordFocused(false)}
                 placeholder="supersecretpassword1%"
-                placeholderTextColor="#4B5563"
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
-                className="flex-1 ml-3 text-white text-[15px] font-mono"
-              />
-              <Pressable
-                onPress={() => setShowPassword(!showPassword)}
-                hitSlop={10}
-                className="p-1"
-              >
-                {showPassword ? (
-                  <EyeOff size={18} color="#9CA3AF" />
-                ) : (
-                  <Eye size={18} color="#6B7280" />
+                autoComplete="password"
+                prefix={({ focused, error: bad }) => (
+                  <Lock size={16} color={bad ? colors.danger : focused ? colors.warm : colors.muted2} />
                 )}
-              </Pressable>
-            </View>
-            {passwordError && (
-              <Text className="text-[#FB3758] text-xs mt-1.5 ml-1">
-                {passwordError}
-              </Text>
-            )}
-          </View>
+                trailing={
+                  <AnimatedPressable
+                    onPress={() => setShowPassword(!showPassword)}
+                    accessibilityRole="button"
+                    accessibilityLabel={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    {showPassword ? (
+                      <EyeOff size={16} color={colors.warm} />
+                    ) : (
+                      <Eye size={16} color={colors.muted2} />
+                    )}
+                  </AnimatedPressable>
+                }
+              />
 
-          {/* Enlace: ¿Olvidaste tu contraseña? */}
-          <View className="items-end mb-6 mt-3">
-            <Pressable
-              onPress={() => router.push('/(auth)/recuperar-password')}
-              hitSlop={8}
-            >
-              <Text className="text-[#FF7854] text-xs font-medium">
-                ¿Olvidaste tu contraseña?
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* Botón Iniciar Sesión → */}
-          <Pressable
-            onPress={handleSubmit}
-            disabled={loading}
-            style={{ height: 52 }}
-            className={`w-full rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#D34524]/20 active:bg-[#E54F2C] ${
-              loading ? 'bg-[#D34524]/60' : 'bg-[#D34524]'
-            }`}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <View className="flex-row items-center justify-center gap-2">
-                <Text className="text-white text-[15px] font-bold tracking-wide">
-                  Iniciar sesión
-                </Text>
-                <ArrowRight size={17} color="#FFFFFF" strokeWidth={2.5} />
+              {/* Enlace: ¿Olvidaste tu contraseña? */}
+              <View style={{ alignItems: 'flex-end', marginTop: -6 }}>
+                <Pressable
+                  onPress={() => router.push('/(auth)/recuperar-password')}
+                  hitSlop={8}
+                  accessibilityRole="link"
+                  style={{ minHeight: 44, justifyContent: 'center' }}
+                >
+                  <Text style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 13 }}>
+                    ¿Olvidaste tu contraseña?
+                  </Text>
+                </Pressable>
               </View>
-            )}
-          </Pressable>
-        </View>
 
-        {/* Sección Inferior / Card de Seguridad Figma */}
-        <View className="items-center mt-2 pb-2">
-          <View className="w-full bg-[#0F1017] border border-[#1C1D29] rounded-2xl p-4 flex-row items-center gap-3 mb-4">
-            <Shield size={18} color="#6B7280" />
-            <Text className="text-zinc-400 text-xs flex-1 leading-relaxed">
-              Acceso exclusivo para el titular. Los prestatarios no tienen acceso a esta aplicación.
-            </Text>
+              {/* Botón Iniciar sesión → */}
+              <Button
+                label="Iniciar sesión"
+                size="lg"
+                onPress={handleSubmit}
+                loading={loading}
+                iconAfter={<ArrowRight size={16} color="#000000" />}
+                style={{ width: '100%' }}
+              />
+            </Animated.View>
+
+            <View style={{ flex: 1 }} />
+
+            <Animated.View entering={screenEnter(2, reduced)}>
+              <AuthSecurityFooter />
+            </Animated.View>
           </View>
-
-          <Text className="text-zinc-600 text-[11px] font-mono tracking-wider">
-            Sistema seguro · Moneda COP · v2.4
-          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
