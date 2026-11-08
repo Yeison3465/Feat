@@ -1,9 +1,10 @@
 import React from 'react'
-import { View, Text, Pressable } from 'react-native'
+import { View, Text } from 'react-native'
 import { useRouter } from 'expo-router'
-import { AlertTriangle, ChevronRight, ShieldCheck } from 'lucide-react-native'
-import { formatCOP } from '../../../shared/utils/currency'
-import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated'
+import { AlertTriangle, ArrowRight, ShieldCheck } from 'lucide-react-native'
+import { AnimatedPressable } from '../../../shared/components/AnimatedPressable'
+import { Card } from '../../../shared/ui/Card'
+import { colors, fonts } from '../../../shared/theme/tokens'
 
 interface OverdueAlertBannerProps {
   readonly personasAtrasadasCount: number
@@ -14,75 +15,94 @@ interface OverdueAlertBannerProps {
 export const OverdueAlertBanner: React.FC<OverdueAlertBannerProps> = ({
   personasAtrasadasCount,
   cuotasVencidasCount,
-  saldoMoraVencido,
 }) => {
   const router = useRouter()
-  const reducedMotion = useReducedMotion()
 
+  // Cartera al día: aviso tranquilo en negro laca, sin alarma
   if (personasAtrasadasCount <= 0 && cuotasVencidasCount <= 0) {
     return (
-      <Animated.View
-        key="overdue-clean"
-        entering={reducedMotion ? undefined : FadeInDown.delay(60).duration(380).springify()}
-        className="bg-[#064E3B]/15 border border-[#065F46]/40 rounded-2xl p-3.5 mb-5 flex-row items-center justify-between"
-      >
-        <View className="flex-row items-center flex-1 mr-2">
-          <View className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 items-center justify-center mr-2.5">
-            <ShieldCheck size={16} color="#10B981" />
-          </View>
-          <View className="flex-1">
-            <Text className="text-emerald-400 text-xs font-bold">
-              Cartera 100% al día
-            </Text>
-            <Text className="text-zinc-400 text-[10px] mt-0.5">
-              No tienes ningún prestatario con obligaciones vencidas hoy.
-            </Text>
-          </View>
+      <Card variant="ink" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
+        <View
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: 'rgba(127,214,164,0.14)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <ShieldCheck size={16} color={colors.ok} />
         </View>
-      </Animated.View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ color: colors.okSoft, fontFamily: fonts.semibold, fontSize: 14 }}>Cartera 100% al día</Text>
+          <Text style={{ color: '#B4B4B9', fontFamily: fonts.regular, fontSize: 12, lineHeight: 16 }}>
+            No tienes ningún prestatario con obligaciones vencidas hoy.
+          </Text>
+        </View>
+      </Card>
     )
   }
 
-  return (
-    <Animated.View
-      key="overdue-alert"
-      entering={reducedMotion ? undefined : FadeInDown.delay(60).duration(380).springify().damping(18).stiffness(160)}
-    >
-      <Pressable
-        onPress={() => router.push({ pathname: '/vencimientos', params: { tab: 'atrasados' } })}
-        className="bg-rose-950/20 border border-[#FB3758]/50 active:bg-rose-950/35 rounded-2xl p-4 mb-5 shadow-lg shadow-rose-950/20"
-      >
-        <View className="flex-row items-center justify-between">
-          <View className="flex-row items-center flex-1 mr-2">
-            <View className="w-9 h-9 rounded-xl bg-rose-500/20 border border-rose-500/40 items-center justify-center mr-3">
-              <AlertTriangle size={18} color="#FB3758" />
-            </View>
-            <View className="flex-1">
-              <View className="flex-row items-center gap-1.5">
-                <Text className="text-white text-xs font-bold uppercase tracking-wider">
-                  Atención requerida
-                </Text>
-                <View className="bg-[#FB3758] px-1.5 py-0.2 rounded-full">
-                  <Text className="text-white text-[9px] font-bold">
-                    {personasAtrasadasCount} {personasAtrasadasCount === 1 ? 'persona' : 'personas'}
-                  </Text>
-                </View>
-              </View>
-              <Text className="text-zinc-300 text-xs mt-0.5">
-                {cuotasVencidasCount} {cuotasVencidasCount === 1 ? 'cuota vencida' : 'cuotas vencidas'} pendientes por cobrar
-              </Text>
-            </View>
-          </View>
+  const personas = `${personasAtrasadasCount} ${personasAtrasadasCount === 1 ? 'persona' : 'personas'}`
+  const cuotas = `${cuotasVencidasCount} ${cuotasVencidasCount === 1 ? 'cuota vencida' : 'cuotas vencidas'} pendientes por cobrar`
 
-          <View className="flex-row items-center gap-1">
-            <Text className="text-[#FB3758] text-xs font-bold">
-              Cobrar
-            </Text>
-            <ChevronRight size={15} color="#FB3758" />
+  return (
+    <AnimatedPressable
+      onPress={() => router.push({ pathname: '/vencimientos', params: { tab: 'atrasados' } })}
+      accessibilityRole="button"
+      accessibilityLabel={`Atención requerida: ${personas}, ${cuotas}`}
+    >
+      {/* Tarjeta blanca con brillo rojo: lo más urgente de la pantalla */}
+      <Card
+        variant="white"
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          gap: 12,
+          padding: 16,
+          boxShadow:
+            '0 0 0 1px rgba(255,107,94,0.45), 0 4px 14px rgba(255,107,94,0.3), 0 20px 48px -8px rgba(255,107,94,0.5)',
+        }}
+      >
+        <View style={{ flex: 1, gap: 10 }}>
+          <Text style={{ color: '#B3261E', fontFamily: fonts.medium, fontSize: 12, lineHeight: 16 }}>Atención requerida</Text>
+          <Text
+            style={{
+              color: '#C8372A',
+              fontFamily: fonts.semibold,
+              fontSize: 32,
+              lineHeight: 34,
+              letterSpacing: -1.1,
+              marginTop: 18,
+            }}
+          >
+            {personas}
+          </Text>
+          <View style={{ alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: '#FFECE8' }}>
+            <Text style={{ color: '#B3261E', fontFamily: fonts.medium, fontSize: 11, lineHeight: 14 }}>{cuotas}</Text>
           </View>
         </View>
-      </Pressable>
-    </Animated.View>
+        <View style={{ alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
+          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFE9E5', alignItems: 'center', justifyContent: 'center' }}>
+            <AlertTriangle size={16} color="#D2392B" />
+          </View>
+          <View
+            style={{
+              height: 44,
+              paddingHorizontal: 16,
+              borderRadius: 999,
+              backgroundColor: colors.app,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <Text style={{ color: '#FFFFFF', fontFamily: fonts.medium, fontSize: 13 }}>Cobrar</Text>
+            <ArrowRight size={16} color="#FFFFFF" />
+          </View>
+        </View>
+      </Card>
+    </AnimatedPressable>
   )
 }
-

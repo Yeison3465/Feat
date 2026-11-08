@@ -1,17 +1,12 @@
 import React from 'react'
-import { View, Text, Pressable, ScrollView, RefreshControl } from 'react-native'
+import { View, Text, ScrollView, RefreshControl, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import {
-  Wallet,
-  Plus,
-  Users,
-  CreditCard,
-  ChevronRight,
-  CalendarClock,
-  Sparkles,
-} from 'lucide-react-native'
+import { LinearGradient } from 'expo-linear-gradient'
+import Animated, { useReducedMotion } from 'react-native-reanimated'
+import { Plus, Users, CalendarDays, CreditCard, ArrowRight, AlertTriangle } from 'lucide-react-native'
 import { useLoans } from '../../modules/loans/hooks/useLoans'
+import { useAuth } from '../../modules/auth/hooks/useAuth'
 import { LoanCard } from '../../modules/loans/components/LoanCard'
 import { DashboardPeriodSelector } from '../../modules/loans/components/DashboardPeriodSelector'
 import { AreaChartCard } from '../../modules/loans/components/AreaChartCard'
@@ -20,13 +15,22 @@ import { DashboardMetricsGrid } from '../../modules/loans/components/DashboardMe
 import { UpcomingDueSection } from '../../modules/loans/components/UpcomingDueSection'
 import { QuickBorrowersSection } from '../../modules/loans/components/QuickBorrowersSection'
 import { formatCOP } from '../../shared/utils/currency'
-import Animated, { FadeInDown, FadeInUp, useReducedMotion } from 'react-native-reanimated'
 import { SkeletonCardList } from '../../shared/components/SkeletonBox'
 import { AnimatedPressable } from '../../shared/components/AnimatedPressable'
+import { AppText } from '../../shared/ui/AppText'
+import { Avatar } from '../../shared/ui/Avatar'
+import { Button } from '../../shared/ui/Button'
+import { Card } from '../../shared/ui/Card'
+import { CoverImage } from '../../shared/ui/CoverImage'
+import { CountUpText } from '../../shared/ui/CountUpText'
+import { images } from '../../shared/images'
+import { screenEnter } from '../../shared/motion'
+import { colors, fonts } from '../../shared/theme/tokens'
 
 export default function DashboardScreen() {
   const router = useRouter()
-  const reducedMotion = useReducedMotion()
+  const reduced = useReducedMotion()
+  const { user } = useAuth()
   const {
     allLoans,
     metrics,
@@ -41,183 +45,220 @@ export default function DashboardScreen() {
   } = useLoans()
 
   const recentLoans = allLoans.slice(0, 3)
+  const profileName = (user?.email ?? 'Perfil').split('@')[0]
+
+  // Cada bloque entra subiendo 14 px con fundido, escalonado de 40 ms en 40 ms (solo al abrir la pantalla)
+  let blockIndex = 0
+  const enter = () => screenEnter(blockIndex++, reduced)
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: '#060709' }}
-      edges={['top']}
-      className="flex-1 bg-[#060709]"
-    >
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.app }} edges={['top']}>
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, gap: 20 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={reload}
-            tintColor="#FF7854"
-            colors={['#FF7854']}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.warm} colors={[colors.warm]} progressBackgroundColor={colors.card2} />
         }
       >
-        {/* Cabecera Principal */}
-        <View className="flex-row items-center justify-between mb-4">
-          <View>
-            <View className="flex-row items-center gap-1.5 mb-1">
-              <View className="w-1.5 h-1.5 rounded-full bg-[#FF7854]" />
-              <Text className="text-zinc-400 text-[11px] font-mono font-bold tracking-widest uppercase">
-                FEAT
-              </Text>
-            </View>
-            <Text className="text-white text-3xl font-bold tracking-tight">
-              Dashboard
-            </Text>
-            <Text className="text-zinc-400 text-xs mt-0.5">
-              Estado general de tu cartera privada
-            </Text>
-          </View>
-
-          <View className="w-11 h-11 rounded-2xl bg-[#191316] border border-[#2F191D] items-center justify-center shadow-lg shadow-black">
-            <Wallet size={20} color="#FF7854" />
-          </View>
-        </View>
-
-        {/* Selector de Periodo (RF-013) */}
-        <DashboardPeriodSelector
-          selectedPeriod={dashboardPeriod}
-          onSelectPeriod={setDashboardPeriod}
-        />
-
-        {/* Banner de Alerta Urgente: Personas en Mora */}
-        <OverdueAlertBanner
-          personasAtrasadasCount={metrics.personasAtrasadasCount}
-          cuotasVencidasCount={metrics.cuotasVencidasCount}
-          saldoMoraVencido={metrics.saldoMoraVencido}
-        />
-
-        {/* Tarjeta Hero: Cartera Total Pendiente (FL-08) */}
+        {/* Barra superior en píldora */}
         <Animated.View
-          entering={reducedMotion ? undefined : FadeInDown.duration(420).springify().damping(18).stiffness(160)}
+          entering={enter()}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            padding: 6,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.line,
+            borderRadius: 999,
+          }}
         >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.warm, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: colors.onLight, fontFamily: fonts.semibold, fontSize: 17, letterSpacing: -0.7 }}>P</Text>
+            </View>
+            <AppText variant="h">FEAT</AppText>
+          </View>
+          <Avatar name={profileName} size={44} />
+        </Animated.View>
+
+        {/* Título */}
+        <Animated.View entering={enter()} style={{ gap: 10, paddingTop: 12, paddingHorizontal: 4 }}>
+          <AppText variant="title" accessibilityRole="header">
+            Dashboard
+          </AppText>
+          <AppText variant="body" style={{ fontSize: 15, lineHeight: 22 }}>
+            Estado general de tu cartera privada
+          </AppText>
+        </Animated.View>
+
+        {/* Selector de periodo (RF-013) */}
+        <Animated.View entering={enter()}>
+          <DashboardPeriodSelector selectedPeriod={dashboardPeriod} onSelectPeriod={setDashboardPeriod} />
+        </Animated.View>
+
+        {/* Alerta urgente: personas en mora */}
+        <Animated.View entering={enter()}>
+          <OverdueAlertBanner
+            personasAtrasadasCount={metrics.personasAtrasadasCount}
+            cuotasVencidasCount={metrics.cuotasVencidasCount}
+            saldoMoraVencido={metrics.saldoMoraVencido}
+          />
+        </Animated.View>
+
+        {/* Cartera total pendiente (FL-08): tarjeta con fotografía */}
+        <Animated.View entering={enter()}>
           <AnimatedPressable
             onPress={() => router.navigate('/prestamos')}
-            className="bg-[#12131A] border border-[#1E2030] active:border-[#FF7854]/50 rounded-3xl p-5 mb-5 shadow-2xl shadow-black"
+            accessibilityRole="button"
+            accessibilityLabel={`Cartera total por cobrar ${formatCOP(metrics.carteraTotalPendiente)}. Ver créditos`}
+            style={{ borderRadius: 32, overflow: 'hidden', borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card }}
           >
-            <View className="flex-row items-center justify-between mb-2">
-              <Text className="text-zinc-400 text-xs font-semibold uppercase tracking-wider">
+            <CoverImage source={images.roll} focusX={0.78} focusY={0.18} style={StyleSheet.absoluteFill} />
+            <LinearGradient
+              pointerEvents="none"
+              colors={['rgba(10,10,11,0)', 'rgba(10,10,11,0.25)', 'rgba(10,10,11,0.86)', colors.app]}
+              locations={[0, 0.26, 0.52, 0.78]}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={{ padding: 20, paddingTop: 196, gap: 16 }}>
+              <AppText variant="lbl" style={{ color: '#C9C9CD' }}>
                 Cartera total por cobrar
-              </Text>
-              <View className="flex-row items-center">
-                <Text className="text-[#FF7854] text-[11px] font-semibold mr-1">
-                  Ver créditos
-                </Text>
-                <ChevronRight size={13} color="#FF7854" />
+              </AppText>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                <CountUpText
+                  value={metrics.carteraTotalPendiente}
+                  style={{ color: colors.warm, fontFamily: fonts.semibold, fontSize: 46, lineHeight: 50, letterSpacing: -2.07 }}
+                />
+                <AppText variant="lbl" tone="muted2" style={{ marginLeft: 6, fontSize: 13, fontFamily: fonts.medium }}>
+                  COP
+                </AppText>
               </View>
+              <View style={{ flexDirection: 'row' }}>
+                <Button
+                  label="Ver créditos"
+                  onPress={() => router.navigate('/prestamos')}
+                  iconAfter={<ArrowRight size={16} color="#000000" />}
+                />
+              </View>
+
+              {/* Desglose de la cartera */}
+              <Card variant="ink" style={{ flexDirection: 'row', alignItems: 'stretch', paddingVertical: 18, paddingHorizontal: 16 }}>
+                <View style={{ flex: 1, gap: 6 }}>
+                  <AppText variant="lbl" style={{ color: '#B4B4B9' }}>
+                    Capital pendiente
+                  </AppText>
+                  <AppText variant="h" style={{ fontFamily: fonts.semibold }}>
+                    {formatCOP(metrics.totalCapitalPendiente)}
+                  </AppText>
+                  <AppText variant="lbl" tone="muted2">
+                    de {formatCOP(metrics.totalCapitalPrestado)}
+                  </AppText>
+                </View>
+                <View style={{ width: 1, backgroundColor: '#303035', marginHorizontal: 16 }} />
+                <View style={{ flex: 1, gap: 6 }}>
+                  <AppText variant="lbl" style={{ color: '#B4B4B9' }}>
+                    Interés por cobrar
+                  </AppText>
+                  <AppText variant="h" style={{ fontFamily: fonts.semibold }}>
+                    {formatCOP(metrics.totalInteresPendiente)}
+                  </AppText>
+                  <AppText variant="lbl" tone="muted2">
+                    en cuotas vigentes
+                  </AppText>
+                </View>
+              </Card>
+
+              {metrics.saldoMoraVencido > 0 && (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    paddingVertical: 12,
+                    paddingHorizontal: 16,
+                    backgroundColor: '#FFDAD4',
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,107,94,0.6)',
+                    borderRadius: 999,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+                    <AlertTriangle size={13} color="#A81F17" />
+                    <Text style={{ color: '#8E1B14', fontFamily: fonts.medium, fontSize: 12, flexShrink: 1 }}>
+                      Mora acumulada pendiente:
+                    </Text>
+                  </View>
+                  <Text style={{ color: '#A81F17', fontFamily: fonts.semibold, fontSize: 14 }}>
+                    {formatCOP(metrics.saldoMoraVencido)} COP
+                  </Text>
+                </View>
+              )}
             </View>
-
-            <View className="flex-row items-baseline gap-2 mb-4">
-              <Text className="text-white text-3xl font-extrabold font-mono tracking-tight">
-                {formatCOP(metrics.carteraTotalPendiente)}
-              </Text>
-              <Text className="text-zinc-500 text-sm font-mono font-semibold">COP</Text>
-            </View>
-
-            {/* Desglose de Componentes de la Cartera */}
-            <View className="grid grid-cols-2 gap-2.5 pt-3 border-t border-[#1C1E2B]">
-              <View className="bg-[#0A0B10] rounded-2xl p-3 border border-[#161722]">
-                <Text className="text-zinc-500 text-[11px] mb-1">Capital pendiente</Text>
-                <Text className="text-white text-sm font-bold font-mono">
-                  {formatCOP(metrics.totalCapitalPendiente)}
-                </Text>
-                <Text className="text-zinc-500 text-[10px] mt-0.5">
-                  de {formatCOP(metrics.totalCapitalPrestado)}
-                </Text>
-              </View>
-
-              <View className="bg-[#0A0B10] rounded-2xl p-3 border border-[#161722]">
-                <Text className="text-zinc-500 text-[11px] mb-1">Interés por cobrar</Text>
-                <Text className="text-[#FF7854] text-sm font-bold font-mono">
-                  {formatCOP(metrics.totalInteresPendiente)}
-                </Text>
-                <Text className="text-zinc-500 text-[10px] mt-0.5">
-                  en cuotas vigentes
-                </Text>
-              </View>
-            </View>
-
-            {metrics.saldoMoraVencido > 0 && (
-              <View className="mt-2.5 bg-rose-500/10 border border-rose-500/25 p-2.5 rounded-xl flex-row justify-between items-center">
-                <Text className="text-rose-400 text-[11px] font-medium">
-                  Mora acumulada pendiente:
-                </Text>
-                <Text className="text-rose-400 text-xs font-bold font-mono">
-                  {formatCOP(metrics.saldoMoraVencido)} COP
-                </Text>
-              </View>
-            )}
           </AnimatedPressable>
         </Animated.View>
 
-        {/* Gráfico de Área: Pagos del Periodo (Figma AreaChartCard) */}
-        <AreaChartCard
-          chartData={chartData}
-          totalRecaudado={metrics.recaudoPeriodo}
-          period={dashboardPeriod}
-        />
-
-        {/* Botones de Acción Rápida (3 Píldoras Ergonómicas) */}
-        <Animated.View
-          entering={reducedMotion ? undefined : FadeInUp.delay(80).duration(420).springify().damping(18).stiffness(160)}
-          className="flex-row gap-2.5 mb-6"
-        >
-          <Pressable
+        {/* Acciones rápidas */}
+        <Animated.View entering={enter()} style={{ flexDirection: 'row', gap: 8 }}>
+          <Button
+            label="Préstamo"
             onPress={() => router.push('/prestamos/crear')}
-            style={{ flex: 1 }}
-            className="bg-[#D34524] active:bg-[#E54F2C] py-3.5 rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#D34524]/25"
-          >
-            <Plus size={15} color="#FFFFFF" strokeWidth={2.5} />
-            <Text className="text-white text-xs font-bold ml-1.5">Préstamo</Text>
-          </Pressable>
-
-          <Pressable
+            icon={<Plus size={16} color="#000000" />}
+            style={{ flex: 1, paddingHorizontal: 12 }}
+          />
+          <Button
+            label="Personas"
+            variant="ghost"
             onPress={() => router.navigate('/personas')}
-            style={{ flex: 1 }}
-            className="bg-[#151622] border border-[#232433] active:bg-[#1E2030] py-3.5 rounded-2xl items-center justify-center flex-row"
-          >
-            <Users size={15} color="#FF7854" />
-            <Text className="text-white text-xs font-bold ml-1.5">Personas</Text>
-          </Pressable>
-
-          <Pressable
+            icon={<Users size={16} color={colors.warm} />}
+            style={{ flex: 1, paddingHorizontal: 12 }}
+          />
+          <Button
+            label="Agenda"
+            variant="ghost"
             onPress={() => router.push('/vencimientos')}
-            style={{ flex: 1 }}
-            className="bg-[#151622] border border-[#232433] active:bg-[#1E2030] py-3.5 rounded-2xl items-center justify-center flex-row"
-          >
-            <CalendarClock size={15} color="#9CA3AF" />
-            <Text className="text-zinc-300 text-xs font-bold ml-1.5">Agenda</Text>
-          </Pressable>
+            icon={<CalendarDays size={16} color={colors.warm} />}
+            style={{ flex: 1, paddingHorizontal: 12 }}
+          />
         </Animated.View>
 
-        {/* Cuadrícula de Métricas Financieras (SCR-04 / FL-08) */}
-        <DashboardMetricsGrid metrics={metrics} />
+        {/* Pagos del periodo */}
+        <Animated.View entering={enter()}>
+          <AreaChartCard chartData={chartData} totalRecaudado={metrics.recaudoPeriodo} period={dashboardPeriod} />
+        </Animated.View>
 
-        {/* Sección: Prestatarios Activos (Acceso Rápido) */}
-        <QuickBorrowersSection borrowers={activeBorrowers} />
+        {/* Métricas financieras (SCR-04 / FL-08) */}
+        <Animated.View entering={enter()} style={{ paddingTop: 8 }}>
+          <DashboardMetricsGrid metrics={metrics} />
+        </Animated.View>
 
-        {/* Sección: Próximos Vencimientos Inmediatos */}
-        <UpcomingDueSection obligations={upcomingObligations} />
+        {/* Prestatarios activos (acceso rápido) */}
+        <Animated.View entering={enter()} style={{ paddingTop: 8 }}>
+          <QuickBorrowersSection borrowers={activeBorrowers} />
+        </Animated.View>
 
-        {/* Sección: Actividad Reciente de Préstamos */}
-        <View className="mb-4">
-          <View className="flex-row items-center justify-between mb-3 px-1">
-            <Text className="text-white text-base font-bold tracking-tight">
-              Actividad Reciente
-            </Text>
-            <Pressable onPress={() => router.navigate('/prestamos')}>
-              <Text className="text-[#FF7854] text-xs font-semibold">
+        {/* Próximos vencimientos */}
+        <Animated.View entering={enter()}>
+          <UpcomingDueSection obligations={upcomingObligations} />
+        </Animated.View>
+
+        {/* Actividad reciente de préstamos */}
+        <Animated.View entering={enter()} style={{ gap: 12, paddingTop: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <AppText variant="sec">Actividad reciente</AppText>
+            <AnimatedPressable
+              onPress={() => router.navigate('/prestamos')}
+              accessibilityRole="link"
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44 }}
+            >
+              <AppText variant="amt" style={{ fontSize: 13 }}>
                 Ver todos ({allLoans.length})
-              </Text>
-            </Pressable>
+              </AppText>
+              <ArrowRight size={16} color={colors.warm} />
+            </AnimatedPressable>
           </View>
 
           {loading && !refreshing ? (
@@ -225,36 +266,22 @@ export default function DashboardScreen() {
               <SkeletonCardList count={2} />
             </View>
           ) : allLoans.length === 0 ? (
-            /* Estado Vacío Completo (Caso T-012 / RF-014) */
-            <View
-              key="recent-empty"
-              className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-6 items-center shadow-xl shadow-black"
-            >
-              <View className="w-16 h-16 rounded-2xl bg-[#191316] border border-[#2F191D] items-center justify-center mb-3">
-                <CreditCard size={28} color="#FF7854" />
+            /* Estado vacío completo (Caso T-012 / RF-014) */
+            <Card key="recent-empty" variant="dark" style={{ padding: 24, alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.card2, alignItems: 'center', justifyContent: 'center' }}>
+                <CreditCard size={28} color={colors.warm} />
               </View>
-              <Text className="text-white text-base font-bold text-center">
+              <AppText variant="h" style={{ textAlign: 'center' }}>
                 Tu cartera está lista para comenzar
-              </Text>
-              <Text className="text-zinc-400 text-xs text-center max-w-[270px] mt-1.5 leading-relaxed mb-5">
+              </AppText>
+              <AppText variant="lbl" style={{ textAlign: 'center', lineHeight: 18, maxWidth: 280 }}>
                 Registra primero a una persona y crea tu primer préstamo en pesos colombianos para ver métricas en vivo, vencimientos y flujo de caja aquí.
-              </Text>
-
-              <View className="flex-row gap-3 w-full">
-                <Pressable
-                  onPress={() => router.push('/personas/crear')}
-                  className="flex-1 bg-[#151622] border border-[#232433] py-2.5 rounded-xl items-center"
-                >
-                  <Text className="text-white text-xs font-semibold">+ Crear persona</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => router.push('/prestamos/crear')}
-                  className="flex-1 bg-[#D34524] py-2.5 rounded-xl items-center"
-                >
-                  <Text className="text-white text-xs font-bold">+ Crear préstamo</Text>
-                </Pressable>
+              </AppText>
+              <View style={{ flexDirection: 'row', gap: 10, width: '100%', marginTop: 8 }}>
+                <Button label="+ Crear persona" variant="ghost" onPress={() => router.push('/personas/crear')} style={{ flex: 1 }} />
+                <Button label="+ Crear préstamo" onPress={() => router.push('/prestamos/crear')} style={{ flex: 1 }} />
               </View>
-            </View>
+            </Card>
           ) : (
             <View key="recent-list">
               {recentLoans.map((loan) => (
@@ -262,7 +289,7 @@ export default function DashboardScreen() {
               ))}
             </View>
           )}
-        </View>
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   )

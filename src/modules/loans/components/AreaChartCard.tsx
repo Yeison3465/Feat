@@ -1,26 +1,25 @@
-import React, { useState, useMemo, useRef } from 'react'
-import {
-  View,
-  Text,
-  LayoutChangeEvent,
-  PanResponder,
-  GestureResponderEvent,
-  Pressable,
-} from 'react-native'
-import Svg, {
-  Defs,
-  LinearGradient,
-  Stop,
-  Path,
-  Circle,
-  Line,
-  Text as SvgText,
-  Rect,
-} from 'react-native-svg'
-import { TrendingUp, Sparkles, BarChart3, LineChart as LineChartIcon } from 'lucide-react-native'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { View, Text, LayoutChangeEvent } from 'react-native'
+import Svg, { Defs, LinearGradient, Stop, Path, Circle, Line, Rect } from 'react-native-svg'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import Animated, {
+  FadeIn,
+  useAnimatedProps,
+  useReducedMotion,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated'
+import { scheduleOnRN } from 'react-native-worklets'
+import { LineChart as LineChartIcon, BarChart3 } from 'lucide-react-native'
 import { ChartPoint, DashboardPeriod } from '../types'
 import { formatCOP } from '../../../shared/utils/currency'
-import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated'
+import { AnimatedPressable } from '../../../shared/components/AnimatedPressable'
+import { AppText } from '../../../shared/ui/AppText'
+import { Card } from '../../../shared/ui/Card'
+import { colors, fonts } from '../../../shared/theme/tokens'
+import { EASE_OUT } from '../../../shared/motion'
+import { haptic } from '../../../shared/haptics'
 
 interface AreaChartCardProps {
   readonly chartData: ChartPoint[]
@@ -99,21 +98,47 @@ function buildMonotoneCubicPath(points: { x: number; y: number }[]): string {
   return path
 }
 
-export const AreaChartCard: React.FC<AreaChartCardProps> = ({
-  chartData,
-  totalRecaudado,
-  period,
-}) => {
-  const reducedMotion = useReducedMotion()
-  const [containerWidth, setContainerWidth] = useState(330)
+const AnimatedRect = Animated.createAnimatedComponent(Rect)
+
+// Barra que crece desde la base (560 ms, ease-out) con 50 ms entre barras
+const GrowingBar: React.FC<{
+  readonly x: number
+  readonly width: number
+  readonly height: number
+  readonly baseline: number
+  readonly fill: string
+  readonly index: number
+  readonly replayKey: string
+}> = ({ x, width, height, baseline, fill, index, replayKey }) => {
+  const reduced = useReducedMotion()
+  const grow = useSharedValue(reduced ? 1 : 0)
+
+  useEffect(() => {
+    if (reduced) {
+      grow.value = 1
+      return
+    }
+    grow.value = 0
+    grow.value = withDelay(120 + index * 50, withTiming(1, { duration: 560, easing: EASE_OUT }))
+  }, [replayKey, index, reduced, grow])
+
+  const animatedProps = useAnimatedProps(() => {
+    const h = height * grow.value
+    return { y: baseline - h, height: h }
+  })
+
+  return <AnimatedRect x={x} width={width} rx={14} fill={fill} animatedProps={animatedProps} />
+}
+
+export const AreaChartCard: React.FC<AreaChartCardProps> = ({ chartData, totalRecaudado, period }) => {
+  const [innerWidth, setInnerWidth] = useState(318)
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [displayMode, setDisplayMode] = useState<'area' | 'barras'>('area')
+  const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleLayout = (e: LayoutChangeEvent) => {
     const w = e.nativeEvent.layout.width
-    if (w > 0 && Math.abs(w - containerWidth) > 4) {
-      setContainerWidth(w)
-    }
+    if (w > 0 && Math.abs(w - innerWidth) > 2) setInnerWidth(w)
   }
 
   const activePoints = useMemo(() => {
@@ -126,75 +151,82 @@ export const AreaChartCard: React.FC<AreaChartCardProps> = ({
     ]
   }, [chartData])
 
+  const n = activePoints.length
   const maxVal = Math.max(...activePoints.map((p) => p.amount), 1)
 
-  // Geometría del Canvas SVG
-  const chartHeight = 135
-  const paddingTop = 22
-  const paddingBottom = 26
-  const paddingLeft = 32
-  const paddingRight = 32
-  const usableWidth = Math.max(containerWidth - paddingLeft - paddingRight, 180)
-  const baselineY = chartHeight - paddingBottom
+  // Geometría: cada punto vive en el centro de su ranura
+  const chartHeight = 132
+  const baselineY = 124
+  const topPadding = 14
+  const slot = innerWidth / n
 
-  // Puntos calculados con precisión
-  const points = useMemo(() => {
-    const count = activePoints.length
-    return activePoints.map((p, i) => {
-      const x = paddingLeft + (i / Math.max(1, count - 1)) * usableWidth
-      const ratio = p.amount / maxVal
-      // Invertir eje Y: baselineY es cero, paddingTop es el máximo
-      const y = baselineY - ratio * (baselineY - paddingTop)
-      return { x, y, ...p }
-    })
-  }, [activePoints, maxVal, usableWidth, baselineY, paddingTop, paddingLeft])
+  const points = useMemo(
+    () =>
+      activePoints.map((p, i) => {
+        const ratio = p.amount / maxVal
+        return { x: (i + 0.5) * slot, y: baselineY - ratio * (baselineY - topPadding), ...p }
+      }),
+    [activePoints, maxVal, slot]
+  )
 
-  // Path de la curva monótona y del área cerrada
   const curvePath = useMemo(() => buildMonotoneCubicPath(points), [points])
   const areaPath = useMemo(() => {
     if (points.length < 2) return ''
     const first = points[0]
     const last = points[points.length - 1]
-    return `${curvePath} L ${last.x.toFixed(2)} ${baselineY.toFixed(2)} L ${first.x.toFixed(2)} ${baselineY.toFixed(2)} Z`
-  }, [curvePath, points, baselineY])
+    return `${curvePath} L ${last.x.toFixed(2)} ${baselineY} L ${first.x.toFixed(2)} ${baselineY} Z`
+  }, [curvePath, points])
 
-  // Scrubber Interactivo mediante PanResponder
-  const findClosestIndex = (locationX: number) => {
-    let closestIdx = 0
-    let minDistance = Infinity
-    points.forEach((pt, idx) => {
-      const dist = Math.abs(pt.x - locationX)
-      if (dist < minDistance) {
-        minDistance = dist
-        closestIdx = idx
+  // Selección: se mantiene 2,5 s tras soltar y luego vuelve al total
+  const lastSelected = useRef<number | null>(null)
+  const select = (idx: number) => {
+    if (clearTimer.current) clearTimeout(clearTimer.current)
+    if (lastSelected.current !== idx) {
+      lastSelected.current = idx
+      haptic('selection')
+    }
+    setSelectedIndex(idx)
+  }
+  const releaseSelect = () => {
+    if (clearTimer.current) clearTimeout(clearTimer.current)
+    clearTimer.current = setTimeout(() => {
+      lastSelected.current = null
+      setSelectedIndex(null)
+    }, 2500)
+  }
+  useEffect(
+    () => () => {
+      if (clearTimer.current) clearTimeout(clearTimer.current)
+    },
+    []
+  )
+
+  // Gestos en el hilo de UI: solo se avisa a React cuando cambia la ranura tocada
+  const lastIdx = useSharedValue(-1)
+  const pan = Gesture.Pan()
+    .minDistance(0)
+    .activeOffsetX([-6, 6])
+    .failOffsetY([-12, 12])
+    .onUpdate((e) => {
+      const idx = Math.max(0, Math.min(n - 1, Math.floor(e.x / slot)))
+      if (idx !== lastIdx.value) {
+        lastIdx.value = idx
+        scheduleOnRN(select, idx)
       }
     })
-    return closestIdx
-  }
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (evt: GestureResponderEvent) => {
-        const idx = findClosestIndex(evt.nativeEvent.locationX)
-        setSelectedIndex(idx)
-      },
-      onPanResponderMove: (evt: GestureResponderEvent) => {
-        const idx = findClosestIndex(evt.nativeEvent.locationX)
-        setSelectedIndex(idx)
-      },
-      onPanResponderRelease: () => {
-        // Mantiene seleccionado por 2.5s y luego vuelve al estado general
-        setTimeout(() => setSelectedIndex(null), 2500)
-      },
+    .onFinalize(() => {
+      lastIdx.value = -1
+      scheduleOnRN(releaseSelect)
     })
-  ).current
+  const tap = Gesture.Tap().onEnd((e) => {
+    const idx = Math.max(0, Math.min(n - 1, Math.floor(e.x / slot)))
+    scheduleOnRN(select, idx)
+    scheduleOnRN(releaseSelect)
+  })
+  const gesture = Gesture.Exclusive(pan, tap)
 
-  const activeSelectedPoint =
-    selectedIndex !== null && points[selectedIndex]
-      ? points[selectedIndex]
-      : null
+  const active = selectedIndex !== null && points[selectedIndex] ? points[selectedIndex] : null
+  const replayKey = `${displayMode}-${period}-${activePoints.map((p) => p.amount).join(',')}`
 
   const periodSubheading =
     period === 'mes_actual'
@@ -204,207 +236,175 @@ export const AreaChartCard: React.FC<AreaChartCardProps> = ({
       : 'Histórico semestral de recaudos'
 
   return (
-    <Animated.View
-      entering={
-        reducedMotion
-          ? undefined
-          : FadeInDown.delay(90).duration(420).springify().damping(18).stiffness(160)
-      }
-      onLayout={handleLayout}
-      className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-5 mb-5 shadow-2xl shadow-black overflow-hidden"
-    >
-      {/* Cabecera */}
-      <View className="flex-row items-center justify-between mb-2">
-        <View className="flex-row items-center">
-          <View className="w-8 h-8 rounded-xl bg-[#191316] border border-[#2F191D] items-center justify-center mr-2.5">
-            <TrendingUp size={16} color="#FF7854" />
-          </View>
-          <View>
-            <Text className="text-white text-sm font-bold tracking-tight">
-              Pagos del periodo
-            </Text>
-            <Text className="text-zinc-500 text-[10px] font-mono mt-0.5">
-              {periodSubheading}
-            </Text>
-          </View>
+    <Card variant="dark" style={{ padding: 20, gap: 16 }}>
+      {/* Cabecera y conmutador Curva / Barras */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <View style={{ gap: 4, flex: 1 }}>
+          <AppText variant="h">Pagos del periodo</AppText>
+          <AppText variant="lbl" tone="muted2">
+            {periodSubheading}
+          </AppText>
         </View>
 
-        {/* Conmutador Curva vs Barras */}
-        <View className="flex-row bg-[#181A26] border border-[#26293D] rounded-xl p-0.5">
-          <Pressable
-            onPress={() => setDisplayMode('area')}
-            style={{ backgroundColor: displayMode === 'area' ? '#FF7854' : 'transparent' }}
-            className="p-1.5 rounded-lg"
-          >
-            <LineChartIcon size={12} color={displayMode === 'area' ? '#FFFFFF' : '#9CA3AF'} />
-          </Pressable>
-          <Pressable
-            onPress={() => setDisplayMode('barras')}
-            style={{ backgroundColor: displayMode === 'barras' ? '#FF7854' : 'transparent' }}
-            className="p-1.5 rounded-lg"
-          >
-            <BarChart3 size={12} color={displayMode === 'barras' ? '#FFFFFF' : '#9CA3AF'} />
-          </Pressable>
+        <View
+          accessibilityRole="tablist"
+          style={{ flexDirection: 'row', gap: 2, padding: 3, backgroundColor: colors.card2, borderRadius: 999 }}
+        >
+          {(
+            [
+              { id: 'area', label: 'Curva', Icon: LineChartIcon },
+              { id: 'barras', label: 'Barras', Icon: BarChart3 },
+            ] as const
+          ).map(({ id, label, Icon }) => {
+            const on = displayMode === id
+            return (
+              <AnimatedPressable
+                key={id}
+                onPress={() => setDisplayMode(id)}
+                haptic="selection"
+                accessibilityRole="tab"
+                accessibilityLabel={label}
+                accessibilityState={{ selected: on }}
+                style={{
+                  width: 44,
+                  height: 38,
+                  borderRadius: 999,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: on ? colors.warm : 'transparent',
+                }}
+              >
+                <Icon size={16} color={on ? colors.onLight : colors.muted} />
+              </AnimatedPressable>
+            )
+          })}
         </View>
       </View>
 
-      {/* Monto Hero o Tooltip Interactivo */}
-      <View className="h-14 justify-center mt-1 mb-2">
-        {activeSelectedPoint ? (
+      {/* Total del periodo o valor de la ranura seleccionada */}
+      <View style={{ minHeight: 56, justifyContent: 'center' }} accessibilityLiveRegion="polite">
+        {active ? (
           <View
-            key="tooltip-selected"
-            className="bg-[#181A26] border border-[#FF7854]/60 rounded-2xl px-3.5 py-1.5 flex-row items-center justify-between shadow-lg shadow-black"
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingVertical: 10,
+              paddingHorizontal: 14,
+              backgroundColor: colors.card2,
+              borderWidth: 1,
+              borderColor: '#3A3A3F',
+              borderRadius: 20,
+            }}
           >
-            <View>
-              <Text className="text-[#FF7854] text-[10px] font-mono font-bold uppercase">
-                {activeSelectedPoint.label}
-              </Text>
-              <Text className="text-white text-xl font-black font-mono">
-                {formatCOP(activeSelectedPoint.amount)}
-              </Text>
+            <View style={{ gap: 2 }}>
+              <AppText variant="lbl">{active.label}</AppText>
+              <AppText variant="metric" style={{ fontSize: 22, lineHeight: 26 }}>
+                {formatCOP(active.amount)}
+              </AppText>
             </View>
-            <View className="bg-[#FF7854]/15 px-2.5 py-1 rounded-full">
-              <Text className="text-[#FF7854] text-[10px] font-mono font-bold">
-                {maxVal > 0 ? `${((activeSelectedPoint.amount / maxVal) * 100).toFixed(0)}% del pico` : '0%'}
+            <View style={{ height: 24, paddingHorizontal: 10, borderRadius: 999, backgroundColor: colors.card, justifyContent: 'center' }}>
+              <Text style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 11 }}>
+                {maxVal > 0 ? `${((active.amount / maxVal) * 100).toFixed(0)}% del pico` : '0%'}
               </Text>
             </View>
           </View>
         ) : (
-          <View key="tooltip-total" className="flex-row items-baseline gap-1.5">
-            <Text className="text-white text-3xl font-extrabold font-mono tracking-tight">
-              {formatCOP(totalRecaudado)}
-            </Text>
-            <Text className="text-zinc-500 text-xs font-mono font-semibold">COP</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', paddingTop: 10 }}>
+            <AppText variant="metric">{formatCOP(totalRecaudado)}</AppText>
+            <AppText variant="lbl" tone="muted2" style={{ marginLeft: 6, fontSize: 13, fontFamily: fonts.medium }}>
+              COP
+            </AppText>
           </View>
         )}
       </View>
 
-      {/* Canvas SVG con Spline Monótono y Scrubber Continuo */}
-      <View {...panResponder.panHandlers} className="w-full items-center justify-center">
-        <Svg width={containerWidth - 40} height={chartHeight}>
-          <Defs>
-            <LinearGradient id="smoothAreaGrad" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0%" stopColor="#FF7854" stopOpacity="0.45" />
-              <Stop offset="60%" stopColor="#D34524" stopOpacity="0.12" />
-              <Stop offset="100%" stopColor="#12131A" stopOpacity="0.0" />
-            </LinearGradient>
-            <LinearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0%" stopColor="#FF7854" stopOpacity="0.9" />
-              <Stop offset="100%" stopColor="#D34524" stopOpacity="0.4" />
-            </LinearGradient>
-          </Defs>
+      {/* Gráfica: toca o arrastra para explorar cada periodo */}
+      <GestureDetector gesture={gesture}>
+        <Animated.View key={displayMode} entering={FadeIn.duration(200)} onLayout={handleLayout} style={{ height: chartHeight }}>
+          <Svg width={innerWidth} height={chartHeight}>
+            <Defs>
+              <LinearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor={colors.warm} stopOpacity={0.22} />
+                <Stop offset="1" stopColor={colors.warm} stopOpacity={0} />
+              </LinearGradient>
+            </Defs>
 
-          {/* Línea Base X (Nivel 0) */}
-          <Line
-            x1={paddingLeft - 10}
-            y1={baselineY}
-            x2={containerWidth - 40 - paddingRight + 10}
-            y2={baselineY}
-            stroke="#1E2030"
-            strokeWidth={1}
-          />
+            <Line x1={0} y1={baselineY} x2={innerWidth} y2={baselineY} stroke={colors.line} strokeWidth={1} />
 
-          {/* MODO BARRAS */}
-          {displayMode === 'barras' && (
-            <>
-              {points.map((pt, i) => {
-                const isSelected = selectedIndex === i
-                const barWidth = Math.min(32, usableWidth / (points.length * 1.8))
-                const barHeight = Math.max(4, baselineY - pt.y)
-                const barX = pt.x - barWidth / 2
-                const barY = baselineY - barHeight
-
+            {displayMode === 'barras' &&
+              points.map((pt, i) => {
+                const barWidth = Math.min(40, slot * 0.6)
+                const h = Math.max(4, baselineY - pt.y)
+                const isSel = selectedIndex === i
                 return (
-                  <Rect
+                  <GrowingBar
                     key={`bar-${i}`}
-                    x={barX}
-                    y={barY}
+                    x={pt.x - barWidth / 2}
                     width={barWidth}
-                    height={barHeight}
-                    rx={6}
-                    fill={pt.amount > 0 ? (isSelected ? '#FF9270' : 'url(#barGrad)') : '#1C1E2B'}
-                    stroke={isSelected ? '#FF7854' : 'transparent'}
-                    strokeWidth={1.5}
+                    height={h}
+                    baseline={baselineY}
+                    index={i}
+                    replayKey={replayKey}
+                    fill={isSel ? colors.warm : pt.amount > 0 ? '#3A3A3F' : colors.line}
                   />
                 )
               })}
-            </>
-          )}
 
-          {/* MODO ÁREA (Curva Monótona Cúbica) */}
-          {displayMode === 'area' && (
-            <>
-              {/* Relleno de Área */}
-              <Path d={areaPath} fill="url(#smoothAreaGrad)" />
+            {displayMode === 'area' && (
+              <>
+                <Path d={areaPath} fill="url(#areaFill)" />
+                <Path d={curvePath} fill="none" stroke={colors.warm} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                {points.map((pt, i) => {
+                  const isSel = selectedIndex === i
+                  return (
+                    <React.Fragment key={`dot-${i}`}>
+                      {isSel && <Circle cx={pt.x} cy={pt.y} r={12} fill="rgba(245,245,243,0.12)" />}
+                      <Circle
+                        cx={pt.x}
+                        cy={pt.y}
+                        r={isSel ? 7 : 5}
+                        fill={colors.warm}
+                        stroke={colors.card}
+                        strokeWidth={3}
+                      />
+                    </React.Fragment>
+                  )
+                })}
+              </>
+            )}
+          </Svg>
+        </Animated.View>
+      </GestureDetector>
 
-              {/* Trazado Superior */}
-              <Path
-                d={curvePath}
-                fill="none"
-                stroke="#FF7854"
-                strokeWidth={2.5}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-
-              {/* Puntos de Datos */}
-              {points.map((pt, i) => {
-                const isSelected = selectedIndex === i
-                const hasValue = pt.amount > 0
-
-                return (
-                  <Circle
-                    key={`dot-${i}`}
-                    cx={pt.x}
-                    cy={pt.y}
-                    r={isSelected ? 6 : hasValue ? 4.5 : 3}
-                    fill={isSelected ? '#FFFFFF' : '#FF7854'}
-                    stroke={isSelected ? '#FF7854' : '#12131A'}
-                    strokeWidth={isSelected ? 3 : 2}
-                  />
-                )
-              })}
-            </>
-          )}
-
-          {/* Línea Guía Vertical del Scrubber Táctil */}
-          {activeSelectedPoint && (
-            <Line
-              x1={activeSelectedPoint.x}
-              y1={paddingTop - 6}
-              x2={activeSelectedPoint.x}
-              y2={baselineY}
-              stroke="#FF7854"
-              strokeWidth={1.5}
-              strokeDasharray="4 3"
-            />
-          )}
-
-          {/* Etiquetas del Eje X centradas con precisión matemática */}
-          {points.map((pt, i) => {
-            const isSelected = selectedIndex === i
-            return (
-              <SvgText
-                key={`lbl-${i}`}
-                x={pt.x}
-                y={baselineY + 18}
-                fill={isSelected ? '#FF7854' : '#71717A'}
-                fontSize={10}
-                fontWeight={isSelected ? 'bold' : 'normal'}
-                fontFamily="monospace"
-                textAnchor="middle"
-              >
+      {/* Etiquetas del eje X (también seleccionan la ranura) */}
+      <View style={{ flexDirection: 'row', marginTop: -8 }}>
+        {points.map((pt, i) => {
+          const isSel = selectedIndex === i
+          return (
+            <AnimatedPressable
+              key={`lbl-${i}`}
+              containerClassName="flex-1"
+              onPress={() => {
+                select(i)
+                releaseSelect()
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`${pt.label}: ${formatCOP(pt.amount)}`}
+              accessibilityState={{ selected: isSel }}
+              style={{ height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }}
+            >
+              <Text style={{ color: isSel ? colors.warm : colors.muted2, fontFamily: fonts.medium, fontSize: 11 }}>
                 {pt.label}
-              </SvgText>
-            )
-          })}
-        </Svg>
+              </Text>
+            </AnimatedPressable>
+          )
+        })}
       </View>
 
-      {/* Indicador de ayuda */}
-      <Text className="text-zinc-500 text-[10px] text-center mt-1">
+      <AppText variant="lbl" tone="muted2" style={{ textAlign: 'center', marginTop: -8 }}>
         Toca o arrastra sobre la gráfica para explorar cada periodo
-      </Text>
-    </Animated.View>
+      </AppText>
+    </Card>
   )
 }

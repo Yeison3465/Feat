@@ -1,40 +1,35 @@
 import React from 'react'
-import { View, Text, Pressable } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Calendar, ChevronRight, AlertTriangle, CheckCircle2, ShieldCheck } from 'lucide-react-native'
+import { LinearGradient } from 'expo-linear-gradient'
+import { Calendar, ArrowRight, AlertTriangle, CheckCircle2 } from 'lucide-react-native'
 import { LoanWithDetails } from '../types'
-import { getInitials } from '../../../shared/utils/initials'
 import { formatCOP, formatDateFriendly } from '../../../shared/utils/currency'
 import { formatDateLong } from '../../../shared/utils/dates'
-import Animated, {
-  FadeInDown,
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  useReducedMotion,
-} from 'react-native-reanimated'
+import { loanImage, tintByTone, tintLocations } from '../../../shared/images'
+import { AnimatedPressable } from '../../../shared/components/AnimatedPressable'
+import { Avatar } from '../../../shared/ui/Avatar'
+import { Chip } from '../../../shared/ui/Chip'
+import { CoverImage } from '../../../shared/ui/CoverImage'
+import { ProgressBar } from '../../../shared/ui/ProgressBar'
+import { colors, fonts } from '../../../shared/theme/tokens'
 
 interface LoanCardProps {
   readonly loan: LoanWithDetails
 }
 
+// Tarjeta de préstamo con foto según su estado (mora > completado > exento > activo)
 export const LoanCard: React.FC<LoanCardProps> = ({ loan }) => {
   const router = useRouter()
-  const reducedMotion = useReducedMotion()
-  const scale = useSharedValue(1)
-  const scaleStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }))
   const borrowerName = loan.persona?.nombre || 'Prestatario'
-  const initials = getInitials(borrowerName)
-  const isExempt = loan.persona?.exento_interes_ordinario || loan.tasa_mensual === 0
+  const isExempt = !!loan.persona?.exento_interes_ordinario || loan.tasa_mensual === 0
   const shortCode = `PR-${loan.id.slice(0, 4).toUpperCase()}`
 
   // Calcular saldos y cuota próxima
   const cuotas = loan.cuotas || []
   const proximaCuota = cuotas.find((c) => !c.esta_liquidada) || cuotas[0]
   const today = new Date().toISOString().split('T')[0]
-  const isOverdue = proximaCuota && !proximaCuota.esta_liquidada && proximaCuota.fecha_vencimiento < today
+  const isOverdue = !!proximaCuota && !proximaCuota.esta_liquidada && proximaCuota.fecha_vencimiento < today
 
   // Capital pendiente
   const totalCapitalPagado = cuotas.reduce((acc, c) => acc + (c.capital_pagado || 0), 0)
@@ -48,144 +43,130 @@ export const LoanCard: React.FC<LoanCardProps> = ({ loan }) => {
       Math.max(0, proximaCuota.mora_acumulada - proximaCuota.mora_pagada)
     : capitalPendiente
 
-  const getStatusBadge = () => {
-    if (loan.estado === 'completado') {
-      return (
-        <View className="bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 rounded-full flex-row items-center">
-          <CheckCircle2 size={12} color="#10B981" />
-          <Text className="text-emerald-400 text-[11px] font-semibold ml-1">Completado</Text>
-        </View>
-      )
-    }
-    if (isOverdue || loan.estado === 'en_mora') {
-      return (
-        <View className="bg-rose-500/15 border border-rose-500/30 px-2.5 py-1 rounded-full flex-row items-center">
-          <AlertTriangle size={12} color="#FB3758" />
-          <Text className="text-[#FB3758] text-[11px] font-semibold ml-1">En mora</Text>
-        </View>
-      )
-    }
-    return (
-      <View className="bg-[#D34524]/15 border border-[#D34524]/30 px-2.5 py-1 rounded-full flex-row items-center">
-        <Text className="text-[#FF7854] text-[11px] font-semibold">Activo</Text>
-      </View>
-    )
-  }
+  const inMora = isOverdue || loan.estado === 'en_mora'
+  const img = loanImage(inMora ? 'en_mora' : loan.estado, isExempt)
+
+  const status =
+    loan.estado === 'completado'
+      ? { label: 'Completado', tone: 'ok' as const, icon: <CheckCircle2 size={12} color="#A6E8C3" /> }
+      : inMora
+      ? { label: 'En mora', tone: 'danger' as const, icon: <AlertTriangle size={12} color="#FFB8B0" /> }
+      : { label: 'Activo', tone: 'neutral' as const, icon: null }
 
   return (
-    <Animated.View
-      entering={reducedMotion ? undefined : FadeInDown.duration(420).springify().damping(18).stiffness(160)}
-      style={scaleStyle}
+    <AnimatedPressable
+      onPress={() => router.push(`/prestamos/${loan.id}`)}
+      accessibilityRole="button"
+      accessibilityLabel={`Préstamo de ${borrowerName}, ${status.label}. Abrir detalle`}
+      containerClassName="mb-4"
+      style={{ borderRadius: 32, overflow: 'hidden', borderWidth: 1, borderColor: colors.line, backgroundColor: colors.app }}
     >
-      <Pressable
-        onPressIn={() => {
-          if (!reducedMotion) scale.value = withSpring(0.98, { damping: 16, stiffness: 300 })
-        }}
-        onPressOut={() => {
-          if (!reducedMotion) scale.value = withSpring(1, { damping: 16, stiffness: 300 })
-        }}
-        onPress={() => router.push(`/prestamos/${loan.id}`)}
-        className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-5 mb-4 shadow-xl shadow-black active:border-[#D34524]/50"
-      >
-      {/* Cabecera de la Tarjeta */}
-      <View className="flex-row items-center justify-between mb-3.5">
-        <View className="flex-row items-center flex-1 mr-2">
-          {/* Avatar Iniciales */}
-          <View className="w-11 h-11 rounded-xl bg-[#191316] border border-[#2F191D] items-center justify-center mr-3">
-            <Text className="text-[#FF7854] text-sm font-bold font-mono">
-              {initials}
-            </Text>
-          </View>
+      <CoverImage source={img.source} focusY={img.focusY} style={StyleSheet.absoluteFill} />
+      <LinearGradient
+        pointerEvents="none"
+        colors={tintByTone[img.tone]}
+        locations={tintLocations}
+        style={StyleSheet.absoluteFill}
+      />
 
-          <View className="flex-1">
-            <View className="flex-row items-center gap-1.5">
-              <Text className="text-zinc-500 text-[11px] font-mono font-semibold">
-                #{shortCode}
-              </Text>
-              {isExempt && (
-                <View className="bg-amber-500/15 px-1.5 py-0.5 rounded">
-                  <Text className="text-amber-400 text-[9px] font-bold uppercase">Exento</Text>
-                </View>
-              )}
-            </View>
-            <Text className="text-white text-[15px] font-bold tracking-tight" numberOfLines={1}>
+      <View style={{ minHeight: 440, padding: 16, gap: 16 }}>
+        {/* Estado y código */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Chip glass tone={status.tone} label={status.label} icon={status.icon} />
+            {isExempt && <Chip glass tone="warn" label="Exento" />}
+          </View>
+          <Chip glass label={`#${shortCode}`} />
+        </View>
+
+        <View style={{ flex: 1 }} />
+
+        {/* Prestatario */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Avatar name={borrowerName} size={44} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text numberOfLines={1} style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 18, lineHeight: 24, letterSpacing: -0.18 }}>
               {borrowerName}
             </Text>
-            <Text className="text-zinc-500 text-[11px] mt-0.5" numberOfLines={1}>
+            <Text numberOfLines={1} style={{ color: '#C4C4C8', fontFamily: fonts.regular, fontSize: 12, lineHeight: 16 }}>
               Prestado el {formatDateLong(loan.fecha_desembolso)}
             </Text>
           </View>
         </View>
 
-        {getStatusBadge()}
-      </View>
-
-      {/* Saldo Exigible Destacado */}
-      <View className="bg-[#0A0B10] border border-[#1C1E2B] rounded-2xl p-3.5 mb-3.5">
-        <View className="flex-row items-center justify-between mb-1">
-          <Text className="text-zinc-400 text-xs">
-            {proximaCuota ? 'Saldo próxima obligación' : 'Capital total adeudado'}
-          </Text>
-          {proximaCuota && (
-            <View className="flex-row items-center">
-              <Calendar size={12} color={isOverdue ? '#FB3758' : '#9CA3AF'} />
-              <Text
-                className={`text-[11px] font-medium ml-1 ${
-                  isOverdue ? 'text-[#FB3758] font-bold' : 'text-zinc-400'
-                }`}
-              >
-                {formatDateFriendly(proximaCuota.fecha_vencimiento)}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <View className="flex-row items-baseline gap-1.5">
-          <Text className="text-white text-2xl font-extrabold font-mono tracking-tight">
-            {formatCOP(saldoExigible)}
-          </Text>
-          <Text className="text-zinc-500 text-xs font-mono font-semibold">
-            COP
-          </Text>
-        </View>
-      </View>
-
-      {/* Barra de Recuperación de Capital y Tasa */}
-      <View className="space-y-1.5">
-        <View className="flex-row justify-between items-center text-xs">
-          <Text className="text-zinc-400 text-[11px]">
-            Capital pendiente: <Text className="text-white font-medium">{formatCOP(capitalPendiente)}</Text>
-          </Text>
-          <Text className="text-zinc-500 text-[11px]">
-            de {formatCOP(loan.capital_original)}
-          </Text>
-        </View>
-
-        {/* Barra de progreso */}
-        <View className="h-1.5 bg-[#1C1E2B] rounded-full overflow-hidden my-1">
-          <View
-            style={{ width: `${Math.min(100, Math.max(0, capitalRatio))}%` }}
-            className="h-full bg-emerald-500 rounded-full"
-          />
-        </View>
-
-        {/* Pie con tasa pactada y chevron */}
-        <View className="flex-row items-center justify-between pt-1">
-          <Text className="text-zinc-500 text-[11px]">
-            {isExempt
-              ? 'Tasa 0% pactada (Exento)'
-              : `Tasa ordinaria: ${loan.tasa_mensual}% mensual`}
-          </Text>
-          <View className="flex-row items-center">
-            <Text className="text-[#FF7854] text-xs font-semibold mr-0.5">
-              Ver detalle
+        {/* Saldo exigible destacado */}
+        <View style={{ gap: 4 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <Text style={{ color: '#C4C4C8', fontFamily: fonts.regular, fontSize: 12 }}>
+              {proximaCuota ? 'Saldo próxima obligación' : 'Capital total adeudado'}
             </Text>
-            <ChevronRight size={14} color="#FF7854" />
+            {proximaCuota && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Calendar size={13} color={isOverdue ? colors.dangerSoft : '#D0D0D4'} />
+                <Text style={{ color: isOverdue ? colors.dangerSoft : '#D0D0D4', fontFamily: fonts.medium, fontSize: 11 }}>
+                  {formatDateFriendly(proximaCuota.fecha_vencimiento)}
+                </Text>
+              </View>
+            )}
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+              style={{ color: colors.warm, fontFamily: fonts.semibold, fontSize: 40, lineHeight: 42, letterSpacing: -1.8, flexShrink: 1 }}
+            >
+              {formatCOP(saldoExigible)}
+            </Text>
+            <Text style={{ color: colors.muted2, fontFamily: fonts.medium, fontSize: 13, marginLeft: 6 }}>COP</Text>
+          </View>
+        </View>
+
+        {/* Capital pendiente, avance y tasa */}
+        <View
+          style={{
+            gap: 10,
+            padding: 12,
+            borderRadius: 22,
+            backgroundColor: 'rgba(10,10,11,0.58)',
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.1)',
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <Text style={{ color: '#C4C4C8', fontFamily: fonts.regular, fontSize: 12, flexShrink: 1 }}>
+              Capital pendiente:{' '}
+              <Text style={{ color: colors.warm, fontFamily: fonts.medium }}>{formatCOP(capitalPendiente)}</Text>
+            </Text>
+            <Text style={{ color: '#9A9AA0', fontFamily: fonts.regular, fontSize: 12 }}>de {formatCOP(loan.capital_original)}</Text>
+          </View>
+          <ProgressBar percent={capitalRatio} />
+          <Text style={{ color: '#9A9AA0', fontFamily: fonts.regular, fontSize: 12 }}>
+            {isExempt ? 'Tasa 0% pactada (Exento)' : `Tasa ordinaria: ${loan.tasa_mensual}% mensual`}
+          </Text>
+        </View>
+
+        {/* Invitación a abrir el detalle (toda la tarjeta es tocable) */}
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View
+            style={{
+              flex: 1,
+              height: 48,
+              borderRadius: 999,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'rgba(255,255,255,0.14)',
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.2)',
+            }}
+          >
+            <Text style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 14 }}>Ver detalle</Text>
+          </View>
+          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.warm, alignItems: 'center', justifyContent: 'center' }}>
+            <ArrowRight size={16} color={colors.onLight} />
           </View>
         </View>
       </View>
-    </Pressable>
-  </Animated.View>
+    </AnimatedPressable>
   )
 }
-
