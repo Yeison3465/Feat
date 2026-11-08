@@ -17,14 +17,14 @@ interface SkeletonBoxProps {
   readonly className?: string
 }
 
-// Bloque de carga: pulsa entre .35 y .75 de opacidad en 1,1 s (fijo en .5 con movimiento reducido)
+// Bloque de carga: pulso suave entre .5 y .7 de opacidad en 1,6 s (fijo en .5 con movimiento reducido)
 export const SkeletonBox: React.FC<SkeletonBoxProps> = ({
   width = '100%',
   height = 20,
   className = 'rounded-xl',
 }) => {
   const reducedMotion = useReducedMotion()
-  const opacity = useSharedValue(0.35)
+  const opacity = useSharedValue(0.5)
 
   useEffect(() => {
     if (reducedMotion) {
@@ -33,7 +33,7 @@ export const SkeletonBox: React.FC<SkeletonBoxProps> = ({
     }
 
     opacity.value = withRepeat(
-      withTiming(0.75, { duration: 1100, easing: Easing.inOut(Easing.ease) }),
+      withTiming(0.7, { duration: 1600, easing: Easing.inOut(Easing.ease) }),
       -1,
       true
     )

@@ -1,7 +1,7 @@
 // Sistema de movimiento (hoja "Animaciones" del prototipo).
 // Reglas: solo transform y opacity; entradas con ease-out; salidas más rápidas que las entradas;
 // si hay dedo, resorte; movimiento reducido siempre soportado.
-import { Easing, FadeInDown } from 'react-native-reanimated'
+import { Easing, FadeIn, FadeInDown } from 'react-native-reanimated'
 
 // Curvas
 export const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1)
@@ -41,10 +41,10 @@ export const staggerDelay = (index: number) =>
   Math.min(index * DURATION.stagger, DURATION.staggerMax)
 
 // Entrada de bloque de pantalla: sube 14 px con fundido (460 ms, ease-out), escalonada de 40 ms en 40 ms.
-// Con movimiento reducido no hay animación de entrada.
+// Con movimiento reducido solo hay un fundido corto de 200 ms, sin desplazamiento.
 export const screenEnter = (index: number, reduced: boolean) =>
   reduced
-    ? undefined
+    ? FadeIn.duration(DURATION.fade)
     : FadeInDown.withInitialValues({ opacity: 0, transform: [{ translateY: 14 }] })
         .delay(staggerDelay(index))
         .duration(DURATION.screenIn)

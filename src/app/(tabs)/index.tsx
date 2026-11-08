@@ -15,7 +15,7 @@ import { DashboardMetricsGrid } from '../../modules/loans/components/DashboardMe
 import { UpcomingDueSection } from '../../modules/loans/components/UpcomingDueSection'
 import { QuickBorrowersSection } from '../../modules/loans/components/QuickBorrowersSection'
 import { formatCOP } from '../../shared/utils/currency'
-import { SkeletonCardList } from '../../shared/components/SkeletonBox'
+import { SkeletonBox, SkeletonCardList } from '../../shared/components/SkeletonBox'
 import { AnimatedPressable } from '../../shared/components/AnimatedPressable'
 import { AppText } from '../../shared/ui/AppText'
 import { Avatar } from '../../shared/ui/Avatar'
@@ -26,6 +26,20 @@ import { CountUpText } from '../../shared/ui/CountUpText'
 import { images } from '../../shared/images'
 import { screenEnter } from '../../shared/motion'
 import { colors, fonts } from '../../shared/theme/tokens'
+
+// Esqueleto del Dashboard mientras llegan los datos: mismos contornos que los bloques reales
+const DashboardSkeleton: React.FC = () => (
+  <View accessibilityLabel="Cargando" accessibilityRole="progressbar" style={{ gap: 20 }}>
+    <SkeletonBox height={52} className="rounded-full" />
+    <Card variant="ink" style={{ padding: 20, gap: 14 }}>
+      <SkeletonBox width="40%" height={12} className="rounded-md" />
+      <SkeletonBox width="70%" height={44} className="rounded-xl" />
+      <SkeletonBox width={150} height={48} className="rounded-full" />
+      <SkeletonBox height={96} className="rounded-[22px]" />
+    </Card>
+    <SkeletonCardList count={1} />
+  </View>
+)
 
 export default function DashboardScreen() {
   const router = useRouter()
@@ -45,6 +59,8 @@ export default function DashboardScreen() {
   } = useLoans()
 
   const recentLoans = allLoans.slice(0, 3)
+  // Mientras llegan las consultas se muestra el esqueleto; los bloques entran cuando hay datos
+  const ready = !(loading && !refreshing)
   const profileName = (user?.email ?? 'Perfil').split('@')[0]
 
   // Cada bloque entra subiendo 14 px con fundido, escalonado de 40 ms en 40 ms (solo al abrir la pantalla)
@@ -94,6 +110,10 @@ export default function DashboardScreen() {
           </AppText>
         </Animated.View>
 
+        {!ready ? (
+          <DashboardSkeleton />
+        ) : (
+          <>
         {/* Selector de periodo (RF-013) */}
         <Animated.View entering={enter()}>
           <DashboardPeriodSelector selectedPeriod={dashboardPeriod} onSelectPeriod={setDashboardPeriod} />
@@ -290,6 +310,8 @@ export default function DashboardScreen() {
             </View>
           )}
         </Animated.View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   )
