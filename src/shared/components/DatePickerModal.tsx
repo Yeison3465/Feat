@@ -1,13 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import {
-  View,
-  Text,
-  Modal,
-  Pressable,
-  ScrollView,
-} from 'react-native'
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Check, X, Clock } from 'lucide-react-native'
+import { View, Text } from 'react-native'
+import { ChevronLeft, ChevronRight } from 'lucide-react-native'
 import { addDaysISO, addMonthsISO, todayISO, toISODate, parseISODate } from '../utils/dates'
+import { Dialog } from '../ui/Overlay'
+import { Button } from '../ui/Button'
+import { AnimatedPressable } from './AnimatedPressable'
+import { colors, fonts } from '../theme/tokens'
 
 interface DatePickerModalProps {
   readonly visible: boolean
@@ -76,10 +74,10 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
   const shortcuts = useMemo(
     () =>
       [
-        { key: 'hoy', label: 'Hoy', dateStr: todayStr, icon: true },
-        { key: '15d', label: '+15 días (Quincena)', dateStr: addDaysISO(todayStr, 15), icon: false },
-        { key: '1m', label: '+1 mes', dateStr: addMonthsISO(todayStr, 1), icon: false },
-        { key: '2m', label: '+2 meses', dateStr: addMonthsISO(todayStr, 2), icon: false },
+        { key: 'hoy', label: 'Hoy', dateStr: todayStr },
+        { key: '15d', label: '+15 días (Quincena)', dateStr: addDaysISO(todayStr, 15) },
+        { key: '1m', label: '+1 mes', dateStr: addMonthsISO(todayStr, 1) },
+        { key: '2m', label: '+2 meses', dateStr: addMonthsISO(todayStr, 2) },
       ].map((s) => ({ ...s, disabled: minDate ? s.dateStr < minDate : false })),
     [todayStr, minDate]
   )
@@ -148,180 +146,142 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
   }
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View className="flex-1 bg-black/75 justify-center items-center px-4">
-        <Pressable onPress={onClose} className="absolute inset-0" />
+    <Dialog visible={visible} onClose={onClose}>
+      <Text style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 18, lineHeight: 24 }}>{title}</Text>
 
-        <View className="bg-[#12131A] border border-[#1E2030] rounded-3xl w-full max-w-sm p-5 shadow-2xl shadow-black z-10">
-          {/* Header del Modal */}
-          <View className="flex-row items-center justify-between pb-3 border-b border-[#1C1E2B] mb-3">
-            <View className="flex-row items-center gap-2">
-              <CalendarIcon size={18} color="#FF7854" />
-              <Text className="text-white text-base font-bold tracking-tight">
-                {title}
-              </Text>
-            </View>
-
-            <Pressable onPress={onClose} hitSlop={10} className="p-1 rounded-lg active:bg-[#1E2030]">
-              <X size={18} color="#9CA3AF" />
-            </Pressable>
-          </View>
-
-          {/* Atajos Rápidos */}
-          <Text className="text-zinc-500 text-[11px] font-semibold uppercase tracking-wider mb-2">
-            Atajos frecuentes
-          </Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            className="flex-row mb-4"
-            contentContainerStyle={{ gap: 8 }}
-          >
-            {shortcuts.map((s) => {
-              const isActive = tempSelectedDate === s.dateStr
-              return (
-                <Pressable
-                  key={s.key}
-                  disabled={s.disabled}
-                  onPress={() => handleQuickSelect(s.dateStr)}
-                  className={`px-3 py-1.5 rounded-xl border flex-row items-center gap-1.5 ${
-                    isActive
-                      ? 'bg-[#D34524]/20 border-[#D34524]'
-                      : 'bg-[#181924] border-[#252738]'
-                  } ${s.disabled ? 'opacity-30' : ''}`}
+      {/* Atajos rápidos */}
+      <View style={{ gap: 8 }}>
+        <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 12 }}>Atajos frecuentes</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {shortcuts.map((s) => {
+            const isActive = tempSelectedDate === s.dateStr
+            return (
+              <AnimatedPressable
+                key={s.key}
+                disabled={s.disabled}
+                onPress={() => handleQuickSelect(s.dateStr)}
+                haptic="selection"
+                accessibilityRole="button"
+                accessibilityState={{ selected: isActive, disabled: s.disabled }}
+                style={{
+                  height: 40,
+                  paddingHorizontal: 14,
+                  borderRadius: 999,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: isActive ? colors.warm : colors.card2,
+                  borderWidth: 1,
+                  borderColor: isActive ? colors.warm : colors.line,
+                  opacity: s.disabled ? 0.35 : 1,
+                }}
+              >
+                <Text
+                  style={{
+                    color: isActive ? colors.onLight : colors.warm,
+                    fontFamily: fonts.medium,
+                    fontSize: 12,
+                  }}
                 >
-                  {s.icon && <Clock size={12} color={isActive ? '#FF7854' : '#9CA3AF'} />}
-                  <Text
-                    className={`text-xs font-medium ${
-                      isActive ? 'text-[#FF7854] font-bold' : 'text-zinc-300'
-                    }`}
-                  >
-                    {s.label}
-                  </Text>
-                </Pressable>
-              )
-            })}
-          </ScrollView>
-
-          {/* Navegación Mes / Año */}
-          <View className="flex-row items-center justify-between bg-[#0A0B10] border border-[#1E2030] rounded-2xl px-3 py-2.5 mb-3">
-            <Pressable
-              onPress={handlePrevMonth}
-              className="p-1.5 rounded-xl bg-[#151622] active:bg-[#202234]"
-              hitSlop={8}
-            >
-              <ChevronLeft size={18} color="#D1D5DB" />
-            </Pressable>
-
-            <View className="items-center">
-              <Text className="text-white text-sm font-bold tracking-tight">
-                {MONTH_NAMES[currentMonth]} {currentYear}
-              </Text>
-            </View>
-
-            <Pressable
-              onPress={handleNextMonth}
-              className="p-1.5 rounded-xl bg-[#151622] active:bg-[#202234]"
-              hitSlop={8}
-            >
-              <ChevronRight size={18} color="#D1D5DB" />
-            </Pressable>
-          </View>
-
-          {/* Días de la Semana */}
-          <View className="flex-row mb-2">
-            {DAY_LABELS.map((day) => (
-              <View key={day} style={{ width: CELL_WIDTH }} className="items-center">
-                <Text className="text-zinc-500 text-[11px] font-semibold">
-                  {day}
+                  {s.label}
                 </Text>
-              </View>
-            ))}
-          </View>
-
-          {/* Matriz de Días del Mes (una fila por semana) */}
-          {calendarWeeks.map((week, weekIdx) => (
-            <View key={`week-${weekIdx}`} className="flex-row">
-              {week.map((cell, idx) => {
-                if (cell.day === null || !cell.dateStr) {
-                  return (
-                    <View key={`empty-${weekIdx}-${idx}`} style={{ width: CELL_WIDTH }} className="h-10" />
-                  )
-                }
-
-                const isSelected = cell.dateStr === tempSelectedDate
-                const isToday = cell.dateStr === todayStr
-                const isDisabled = cell.isPast
-
-                return (
-                  <View key={cell.dateStr} style={{ width: CELL_WIDTH }} className="h-10 items-center justify-center">
-                    <Pressable
-                      disabled={isDisabled}
-                      onPress={() => setTempSelectedDate(cell.dateStr!)}
-                      className={`w-9 h-9 rounded-xl items-center justify-center active:opacity-70 ${
-                        isSelected
-                          ? 'bg-[#D34524] border border-[#FF7854]/60'
-                          : isToday
-                          ? 'border border-[#FF7854]/60 bg-[#1A1820]'
-                          : isDisabled
-                          ? 'opacity-30'
-                          : ''
-                      }`}
-                    >
-                      <Text
-                        className={`text-xs font-semibold ${
-                          isSelected
-                            ? 'text-white font-bold'
-                            : isToday
-                            ? 'text-[#FF7854]'
-                            : isDisabled
-                            ? 'text-zinc-600'
-                            : 'text-zinc-200'
-                        }`}
-                      >
-                        {cell.day}
-                      </Text>
-                    </Pressable>
-                  </View>
-                )
-              })}
-            </View>
-          ))}
-
-          {/* Fecha seleccionada previa y Botones de Acción */}
-          <View className="mt-4 pt-3 border-t border-[#1C1E2B]">
-            <View className="flex-row items-center justify-between mb-3 px-1">
-              <Text className="text-zinc-400 text-xs">Fecha elegida:</Text>
-              <Text className="text-white text-xs font-mono font-bold">
-                {tempSelectedDate}
-              </Text>
-            </View>
-
-            <View className="flex-row gap-2">
-              <Pressable
-                onPress={onClose}
-                className="flex-1 py-3 rounded-xl bg-[#161722] border border-[#232433] items-center justify-center active:bg-[#202234]"
-              >
-                <Text className="text-zinc-400 text-xs font-semibold">Cancelar</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={handleConfirm}
-                className="flex-1 py-3 rounded-xl bg-[#D34524] active:bg-[#E54F2C] items-center justify-center flex-row gap-1.5 shadow-md shadow-[#D34524]/20"
-              >
-                <Check size={16} color="#FFFFFF" strokeWidth={2.5} />
-                <Text className="text-white text-xs font-bold">Confirmar</Text>
-              </Pressable>
-            </View>
-          </View>
+              </AnimatedPressable>
+            )
+          })}
         </View>
       </View>
-    </Modal>
+
+      {/* Navegación de mes */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <AnimatedPressable
+          onPress={handlePrevMonth}
+          accessibilityRole="button"
+          accessibilityLabel="Mes anterior"
+          style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.card2, alignItems: 'center', justifyContent: 'center' }}
+        >
+          <ChevronLeft size={16} color={colors.warm} />
+        </AnimatedPressable>
+        <Text
+          accessibilityLiveRegion="polite"
+          style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 16 }}
+        >
+          {MONTH_NAMES[currentMonth]} {currentYear}
+        </Text>
+        <AnimatedPressable
+          onPress={handleNextMonth}
+          accessibilityRole="button"
+          accessibilityLabel="Mes siguiente"
+          style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.card2, alignItems: 'center', justifyContent: 'center' }}
+        >
+          <ChevronRight size={16} color={colors.warm} />
+        </AnimatedPressable>
+      </View>
+
+      {/* Días de la semana */}
+      <View style={{ flexDirection: 'row' }}>
+        {DAY_LABELS.map((day) => (
+          <View key={day} style={{ width: CELL_WIDTH, height: 28, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: colors.muted2, fontFamily: fonts.medium, fontSize: 11 }}>{day}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Matriz de días del mes (una fila por semana) */}
+      <View style={{ gap: 2 }}>
+        {calendarWeeks.map((week, weekIdx) => (
+          <View key={`week-${weekIdx}`} style={{ flexDirection: 'row' }}>
+            {week.map((cell, idx) => {
+              if (cell.day === null || !cell.dateStr) {
+                return <View key={`empty-${weekIdx}-${idx}`} style={{ width: CELL_WIDTH, height: 40 }} />
+              }
+
+              const isSelected = cell.dateStr === tempSelectedDate
+              const isToday = cell.dateStr === todayStr
+              const isDisabled = cell.isPast
+
+              return (
+                <View key={cell.dateStr} style={{ width: CELL_WIDTH, height: 40, alignItems: 'center', justifyContent: 'center' }}>
+                  <AnimatedPressable
+                    disabled={isDisabled}
+                    onPress={() => setTempSelectedDate(cell.dateStr!)}
+                    accessibilityRole="button"
+                    accessibilityLabel={cell.dateStr}
+                    accessibilityState={{ selected: isSelected, disabled: isDisabled }}
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: isSelected ? colors.warm : 'transparent',
+                      borderWidth: isToday && !isSelected ? 1 : 0,
+                      borderColor: '#6C6C72',
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: isSelected ? colors.onLight : isDisabled ? '#4A4A50' : colors.warm,
+                        fontFamily: isSelected ? fonts.semibold : fonts.regular,
+                        fontSize: 14,
+                      }}
+                    >
+                      {cell.day}
+                    </Text>
+                  </AnimatedPressable>
+                </View>
+              )
+            })}
+          </View>
+        ))}
+      </View>
+
+      <Text style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 12 }}>
+        Fecha elegida: {tempSelectedDate}
+      </Text>
+
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <Button label="Cancelar" variant="ghost" onPress={onClose} style={{ flex: 1, height: 52 }} />
+        <Button label="Confirmar" variant="solid" onPress={handleConfirm} style={{ flex: 1, height: 52 }} />
+      </View>
+    </Dialog>
   )
 }
-

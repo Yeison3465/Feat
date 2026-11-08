@@ -9,6 +9,7 @@ import Animated, {
   Easing,
   useReducedMotion,
 } from 'react-native-reanimated'
+import { Card } from '../ui/Card'
 
 interface SkeletonBoxProps {
   readonly width?: number | string
@@ -16,6 +17,7 @@ interface SkeletonBoxProps {
   readonly className?: string
 }
 
+// Bloque de carga: pulsa entre .35 y .75 de opacidad en 1,1 s (fijo en .5 con movimiento reducido)
 export const SkeletonBox: React.FC<SkeletonBoxProps> = ({
   width = '100%',
   height = 20,
@@ -47,35 +49,34 @@ export const SkeletonBox: React.FC<SkeletonBoxProps> = ({
 
   return (
     <Animated.View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
       style={[{ width: width as any, height }, animatedStyle]}
-      className={`bg-[#1E2030] ${className}`}
+      className={`bg-[#26262A] ${className}`}
     />
   )
 }
 
+// Esqueleto de tarjeta: mismo contorno que las tarjetas reales (negro laca)
 export const SkeletonCardList: React.FC<{ readonly count?: number }> = ({ count = 3 }) => {
   return (
-    <View className="w-full">
+    <View className="w-full" accessibilityLabel="Cargando" accessibilityRole="progressbar">
       {Array.from({ length: count }).map((_, idx) => (
-        <View
-          key={idx}
-          className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-5 mb-3.5"
-        >
-          <View className="flex-row items-center justify-between mb-3.5">
+        <Card key={idx} variant="ink" style={{ padding: 18, marginBottom: 14 }}>
+          <View className="flex-row items-center justify-between mb-4">
             <View className="flex-row items-center flex-1 mr-3">
-              <SkeletonBox width={44} height={44} className="rounded-xl mr-3" />
+              <SkeletonBox width={48} height={48} className="rounded-full mr-3" />
               <View className="flex-1 gap-2">
                 <SkeletonBox width="45%" height={12} className="rounded-md" />
                 <SkeletonBox width="75%" height={16} className="rounded-md" />
               </View>
             </View>
-            <SkeletonBox width={68} height={24} className="rounded-full" />
+            <SkeletonBox width={68} height={28} className="rounded-full" />
           </View>
-          <SkeletonBox width="100%" height={64} className="rounded-2xl mb-3" />
+          <SkeletonBox width="100%" height={64} className="rounded-[20px] mb-4" />
           <SkeletonBox width="100%" height={8} className="rounded-full" />
-        </View>
+        </Card>
       ))}
     </View>
   )
 }
-

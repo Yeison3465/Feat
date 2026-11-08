@@ -133,7 +133,8 @@ function NavigationGuard({ fontsReady }: { readonly fontsReady: boolean }) {
             zIndex: 999,
           }}
         >
-          <SplashScreen />
+          {/* Sin texto hasta que Geist esté cargada, para evitar el salto de fuente */}
+          {fontsReady ? <SplashScreen /> : null}
         </View>
       )}
     </View>

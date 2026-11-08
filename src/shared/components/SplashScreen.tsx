@@ -1,29 +1,29 @@
 import React, { useEffect } from 'react'
-import { View, Text, ActivityIndicator, Platform, Image } from 'react-native'
+import { View, Text, ActivityIndicator, Image, StyleSheet } from 'react-native'
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
   withTiming,
-  Easing,
   FadeIn,
   useReducedMotion,
 } from 'react-native-reanimated'
-import { Shield } from 'lucide-react-native'
-
-const APP_ICON = require('../../../assets/icon.png')
+import { LinearGradient } from 'expo-linear-gradient'
+import { ShieldCheck } from 'lucide-react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { images } from '../images'
+import { colors, fonts } from '../theme/tokens'
+import { EASE_IN_OUT } from '../motion'
 
 export const SplashScreen: React.FC = () => {
   const reducedMotion = useReducedMotion()
+  const insets = useSafeAreaInsets()
   const pulse = useSharedValue(1)
 
+  // Pulso del logo: escala 1 → 1,05 → 1 en 2,4 s, en bucle. Sin pulso con movimiento reducido.
   useEffect(() => {
     if (!reducedMotion) {
-      pulse.value = withRepeat(
-        withTiming(1.05, { duration: 1100, easing: Easing.inOut(Easing.ease) }),
-        -1,
-        true
-      )
+      pulse.value = withRepeat(withTiming(1.05, { duration: 1200, easing: EASE_IN_OUT }), -1, true)
     }
   }, [pulse, reducedMotion])
 
@@ -32,82 +32,129 @@ export const SplashScreen: React.FC = () => {
   }))
 
   return (
-    <View
-      style={{ flex: 1, backgroundColor: '#060709' }}
-      className="flex-1 bg-[#060709] items-center justify-between py-16 px-6 overflow-hidden"
-    >
-      {/* Resplandor difuso ambiental superior (Figma halo) */}
-      <View
+    <View style={{ flex: 1, backgroundColor: colors.app, overflow: 'hidden' }}>
+      {/* Foto de billetes a pantalla completa con velo que se oscurece hacia abajo */}
+      <Image source={images.bills} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      <LinearGradient
         pointerEvents="none"
-        style={{
-          position: 'absolute',
-          top: -110,
-          left: '50%',
-          transform: [{ translateX: -175 }],
-          width: 350,
-          height: 350,
-          borderRadius: 175,
-          backgroundColor: '#C94422',
-          opacity: 0.18,
-          ...(Platform.OS === 'web' ? { filter: 'blur(80px)' } : {}),
-        }}
+        colors={['rgba(10,10,11,0.72)', 'rgba(10,10,11,0.86)', colors.app]}
+        locations={[0, 0.52, 1]}
+        style={StyleSheet.absoluteFill}
       />
 
-      <View />
-
-      {/* Centro: Isotipo Oficial FEAT, Marca y Estado */}
-      <Animated.View
-        entering={reducedMotion ? undefined : FadeIn.duration(400)}
-        className="items-center"
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingTop: insets.top + 16,
+          paddingBottom: Math.max(insets.bottom, 16) + 24,
+          paddingHorizontal: 24,
+        }}
       >
-        {/* Isotipo Oficial con esquinas redondeadas y halo */}
+        <View />
+
+        {/* Centro: logo, marca y estado */}
         <Animated.View
-          style={[
-            animatedStyle,
-            {
-              shadowColor: '#C94422',
-              shadowOffset: { width: 0, height: 8 },
-              shadowOpacity: 0.35,
-              shadowRadius: 18,
-              elevation: 10,
-            },
-          ]}
-          className="w-24 h-24 rounded-3xl bg-[#000000] border border-[#232433] items-center justify-center mb-4 overflow-hidden"
+          entering={reducedMotion ? undefined : FadeIn.duration(400)}
+          style={{ alignItems: 'center', gap: 24 }}
         >
-          <Image
-            source={APP_ICON}
-            style={{ width: '100%', height: '100%' }}
-            resizeMode="cover"
-          />
+          <View
+            style={{
+              width: 132,
+              height: 132,
+              borderRadius: 66,
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.16)',
+              backgroundColor: 'rgba(255,255,255,0.04)',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Animated.View
+              accessibilityElementsHidden
+              style={[
+                {
+                  width: 92,
+                  height: 92,
+                  borderRadius: 46,
+                  backgroundColor: colors.warm,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                },
+                animatedStyle,
+              ]}
+            >
+              <Text
+                style={{
+                  color: colors.onLight,
+                  fontFamily: fonts.semibold,
+                  fontSize: 42,
+                  letterSpacing: -2,
+                  includeFontPadding: false,
+                }}
+              >
+                P
+              </Text>
+            </Animated.View>
+          </View>
+
+          <View style={{ alignItems: 'center', gap: 14 }}>
+            <Text
+              style={{
+                color: colors.warm,
+                fontFamily: fonts.light,
+                fontSize: 38,
+                lineHeight: 42,
+                letterSpacing: 13,
+                // El espaciado agrega un hueco al final: se compensa para centrar la palabra
+                marginRight: -13,
+              }}
+            >
+              FEAT
+            </Text>
+            <Text
+              style={{
+                color: colors.warm,
+                fontFamily: fonts.semibold,
+                fontSize: 46,
+                lineHeight: 50,
+                letterSpacing: -2,
+                textAlign: 'center',
+              }}
+            >
+              Cartera Privada
+            </Text>
+          </View>
+
+          <View
+            accessibilityRole="progressbar"
+            accessibilityLiveRegion="polite"
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+          >
+            <ActivityIndicator size="small" color={colors.warm} />
+            <Text style={{ color: '#C4C4C8', fontFamily: fonts.regular, fontSize: 13 }}>
+              Verificando sesión cifrada...
+            </Text>
+          </View>
         </Animated.View>
 
-        {/* Badge FEAT con punto coral vibrante */}
-        <View className="flex-row items-center justify-center gap-1.5 mb-2">
-          <View className="w-1.5 h-1.5 rounded-full bg-[#E05335]" />
-          <Text className="text-zinc-400 text-xs font-mono font-bold tracking-[0.22em] uppercase">
-            FEAT
+        {/* Pie de seguridad */}
+        <View style={{ alignItems: 'center', gap: 10, paddingHorizontal: 8 }}>
+          <ShieldCheck size={20} color={colors.ok} />
+          <Text
+            style={{
+              color: colors.muted,
+              fontFamily: fonts.regular,
+              fontSize: 12,
+              lineHeight: 16,
+              textAlign: 'center',
+            }}
+          >
+            FEAT · Sistema privado de gestión crediticia · COP
           </Text>
         </View>
-
-        {/* Título de Producto */}
-        <Text className="text-white text-2xl font-bold tracking-tight text-center mb-1">
-          Cartera Privada
-        </Text>
-        <Text className="text-zinc-400 text-xs font-mono text-center mb-6">
-          Verificando sesión cifrada...
-        </Text>
-
-        <ActivityIndicator size="small" color="#FF7854" />
-      </Animated.View>
-
-      {/* Pie de Seguridad Bancaria */}
-      <View className="items-center flex-row gap-1.5">
-        <Shield size={12} color="#10B981" />
-        <Text className="text-zinc-500 text-[11px] font-mono tracking-wider">
-          FEAT · Sistema privado de gestión crediticia · COP
-        </Text>
       </View>
     </View>
   )
 }
-
