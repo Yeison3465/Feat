@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, TextInput, Pressable, ActivityIndicator } from 'react-native'
+import { View, Text } from 'react-native'
+import Animated, { useReducedMotion } from 'react-native-reanimated'
 import { Percent, Calendar, Check, AlertCircle } from 'lucide-react-native'
 import { LoanSettings, UpdateSettingsDTO } from '../types'
 import { ErrorMessage } from '../../../shared/components/ErrorMessage'
-import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated'
-import { AnimatedPressable } from '../../../shared/components/AnimatedPressable'
+import { AppText } from '../../../shared/ui/AppText'
+import { Button } from '../../../shared/ui/Button'
+import { Card } from '../../../shared/ui/Card'
+import { Field } from '../../../shared/ui/Field'
+import { screenEnter } from '../../../shared/motion'
+import { haptic } from '../../../shared/haptics'
+import { colors, fonts } from '../../../shared/theme/tokens'
 
 interface InterestSettingsCardProps {
   readonly settings: LoanSettings | null
@@ -17,7 +23,7 @@ export const InterestSettingsCard: React.FC<InterestSettingsCardProps> = ({
   onSave,
   loading,
 }) => {
-  const reducedMotion = useReducedMotion()
+  const reduced = useReducedMotion()
   const [tasaMensual, setTasaMensual] = useState('20')
   const [diasGracia, setDiasGracia] = useState('3')
   const [savedSuccess, setSavedSuccess] = useState(false)
@@ -52,6 +58,7 @@ export const InterestSettingsCard: React.FC<InterestSettingsCardProps> = ({
         tasa_mensual_defecto: tasaNum,
         dias_gracia_defecto: graciaNum,
       })
+      haptic('success')
       setSavedSuccess(true)
       setTimeout(() => setSavedSuccess(false), 3000)
     } catch (err: any) {
@@ -60,103 +67,68 @@ export const InterestSettingsCard: React.FC<InterestSettingsCardProps> = ({
   }
 
   return (
-    <Animated.View
-      entering={reducedMotion ? undefined : FadeInDown.duration(420).springify().damping(18).stiffness(160)}
-      className="bg-[#12131C] border border-[#232433] rounded-[24px] p-5 mb-5 shadow-xl shadow-black"
-    >
-      <View className="flex-row items-center justify-between mb-2">
-        <Text className="text-white text-base font-bold">
-          Condiciones predeterminadas
-        </Text>
-        <Text className="text-stone-500 text-[10px] font-mono uppercase">SCR-19</Text>
-      </View>
-
-      <Text className="text-stone-400 text-xs leading-4 mb-4">
-        Estas condiciones se precargarán automáticamente al otorgar nuevos préstamos.
-      </Text>
-
-      {error && <ErrorMessage message={error} onRetry={() => setError(null)} />}
-
-      {/* Input: Tasa Mensual */}
-      <View className="mb-4">
-        <Text className="text-stone-300 text-xs font-medium mb-1.5 ml-1">
-          Tasa ordinaria mensual (%)
-        </Text>
-        <View className="flex-row items-center px-4 h-12 bg-[#08080E] rounded-xl border border-[#232433] focus:border-[#FF7854]">
-          <Percent size={16} color="#FF7854" />
-          <TextInput
-            value={tasaMensual}
-            onChangeText={(text) => {
-              setTasaMensual(text)
-              if (error) setError(null)
-            }}
-            keyboardType="numeric"
-            placeholder="20"
-            placeholderTextColor="#4B5563"
-            className="flex-1 ml-3 text-white text-sm font-mono"
-          />
-          <Text className="text-stone-400 text-xs font-mono">% mes</Text>
-        </View>
-      </View>
-
-      {/* Input: Días de gracia */}
-      <View className="mb-4">
-        <Text className="text-stone-300 text-xs font-medium mb-1.5 ml-1">
-          Días de gracia por defecto
-        </Text>
-        <View className="flex-row items-center px-4 h-12 bg-[#08080E] rounded-xl border border-[#232433] focus:border-[#FF7854]">
-          <Calendar size={16} color="#9CA3AF" />
-          <TextInput
-            value={diasGracia}
-            onChangeText={(text) => {
-              setDiasGracia(text)
-              if (error) setError(null)
-            }}
-            keyboardType="number-pad"
-            placeholder="3"
-            placeholderTextColor="#4B5563"
-            className="flex-1 ml-3 text-white text-sm font-mono"
-          />
-          <Text className="text-stone-400 text-xs font-mono">días</Text>
-        </View>
-      </View>
-
-      {/* Aviso de consistencia financiera */}
-      <View className="bg-[#0A0B12] border border-[#1E2030] rounded-xl p-3 mb-4 flex-row items-start">
-        <AlertCircle size={15} color="#9CA3AF" className="mt-0.5" />
-        <Text className="text-stone-400 text-[11px] ml-2 leading-4 flex-1">
-          Modificar estos valores no alterará los préstamos creados anteriormente, conservando sus condiciones pactadas originales.
-        </Text>
-      </View>
-
-      {/* Botón Guardar */}
-      <AnimatedPressable
-        onPress={handleSave}
-        disabled={loading}
-        className={`w-full h-11 rounded-xl items-center justify-center flex-row active:opacity-80 ${
-          savedSuccess
-            ? 'bg-emerald-600'
-            : loading
-            ? 'bg-[#C94422]/60'
-            : 'bg-[#D34524]'
-        }`}
-      >
-        {loading ? (
-          <ActivityIndicator size="small" color="#FFFFFF" />
-        ) : savedSuccess ? (
-          <View className="flex-row items-center">
-            <Check size={16} color="#FFFFFF" strokeWidth={2.5} />
-            <Text className="text-white text-xs font-bold ml-1.5">
-              Configuración guardada
-            </Text>
+    <Animated.View entering={screenEnter(2, reduced)}>
+      <Card variant="ink" style={{ padding: 20, gap: 18 }}>
+        <View style={{ gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <AppText variant="sec" style={{ fontSize: 20, flexShrink: 1 }}>
+              Condiciones predeterminadas
+            </AppText>
+            <Text style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 10, letterSpacing: 0.8 }}>SCR-19</Text>
           </View>
-        ) : (
-          <Text className="text-white text-xs font-bold tracking-wide">
-            Guardar condiciones
+          <Text style={{ color: '#B4B4B9', fontFamily: fonts.regular, fontSize: 13, lineHeight: 19 }}>
+            Estas condiciones se precargarán automáticamente al otorgar nuevos préstamos.
           </Text>
-        )}
-      </AnimatedPressable>
+        </View>
+
+        {error && <ErrorMessage message={error} onRetry={() => setError(null)} />}
+
+        <Field
+          compact
+          label="Tasa ordinaria mensual (%)"
+          value={tasaMensual}
+          onChangeText={(text) => {
+            setTasaMensual(text)
+            if (error) setError(null)
+          }}
+          keyboardType="numeric"
+          placeholder="20"
+          suffix="% mes"
+          prefix={({ focused }) => <Percent size={16} color={focused ? colors.warm : colors.muted2} />}
+        />
+
+        <Field
+          compact
+          label="Días de gracia por defecto"
+          value={diasGracia}
+          onChangeText={(text) => {
+            setDiasGracia(text)
+            if (error) setError(null)
+          }}
+          keyboardType="number-pad"
+          placeholder="3"
+          suffix="días"
+          prefix={({ focused }) => <Calendar size={16} color={focused ? colors.warm : colors.muted2} />}
+        />
+
+        {/* Aviso de consistencia financiera */}
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 14, borderRadius: 18, backgroundColor: colors.card2 }}>
+          <AlertCircle size={15} color={colors.muted} style={{ marginTop: 2 }} />
+          <Text style={{ flex: 1, color: colors.muted, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18 }}>
+            Modificar estos valores no alterará los préstamos creados anteriormente, conservando sus condiciones pactadas originales.
+          </Text>
+        </View>
+
+        <Button
+          label={savedSuccess ? 'Configuración guardada' : 'Guardar condiciones'}
+          variant={savedSuccess ? 'success' : 'solid'}
+          onPress={handleSave}
+          loading={loading}
+          disabled={savedSuccess}
+          icon={savedSuccess ? <Check size={16} color="#06220F" strokeWidth={2.5} /> : undefined}
+          style={{ width: '100%', ...(savedSuccess ? { opacity: 1 } : null) }}
+        />
+      </Card>
     </Animated.View>
   )
 }
-

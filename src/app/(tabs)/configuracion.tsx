@@ -1,150 +1,130 @@
 import React from 'react'
-import { View, Text, ActivityIndicator, ScrollView } from 'react-native'
+import { View, Text, ScrollView } from 'react-native'
+import Animated, { useReducedMotion } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { LogOut, User, ShieldCheck, Database, Clock, Smartphone } from 'lucide-react-native'
 import { useAuth } from '../../modules/auth/hooks/useAuth'
 import { useSettings } from '../../modules/settings/hooks/useSettings'
 import { InterestSettingsCard } from '../../modules/settings/components/InterestSettingsCard'
 import { LateFeeSettingsCard } from '../../modules/settings/components/LateFeeSettingsCard'
-import Animated, { FadeInUp, useReducedMotion } from 'react-native-reanimated'
-import { AnimatedPressable } from '../../shared/components/AnimatedPressable'
+import { AppText } from '../../shared/ui/AppText'
+import { Button } from '../../shared/ui/Button'
+import { Card } from '../../shared/ui/Card'
+import { Chip } from '../../shared/ui/Chip'
+import { screenEnter } from '../../shared/motion'
+import { colors, fonts } from '../../shared/theme/tokens'
+
+// Fila «icono + clave — valor» de la tarjeta de cuenta
+const InfoRow: React.FC<{ readonly icon: React.ReactNode; readonly k: string; readonly v: string; readonly vColor?: string; readonly last?: boolean }> = ({
+  icon,
+  k,
+  v,
+  vColor = colors.warm,
+  last,
+}) => (
+  <View
+    style={{
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      paddingVertical: 14,
+      borderBottomWidth: last ? 0 : 1,
+      borderBottomColor: colors.line,
+    }}
+  >
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      {icon}
+      <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 13 }}>{k}</Text>
+    </View>
+    <Text style={{ color: vColor, fontFamily: fonts.medium, fontSize: 13, flexShrink: 1, textAlign: 'right' }}>{v}</Text>
+  </View>
+)
 
 export default function ConfiguracionScreen() {
-  const reducedMotion = useReducedMotion()
+  const reduced = useReducedMotion()
   const { user, signOut, loading: authLoading } = useAuth()
   const { settings, saving, updateSettings } = useSettings()
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#07070A' }} edges={['top']} className="flex-1 bg-[#07070A]">
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.app }} edges={['top']}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 40 }}
-        className="px-6 pt-4 max-w-md mx-auto w-full"
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32, gap: 24 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <View className="flex-row items-center gap-1.5 mb-1">
-          <View className="w-1.5 h-1.5 rounded-full bg-[#FF7854]" />
-          <Text className="text-zinc-400 text-[11px] font-mono font-bold tracking-widest uppercase">
-            FEAT
-          </Text>
-        </View>
-
-        <Text className="text-white text-3xl font-bold tracking-tight mb-1">
-          Configuración
-        </Text>
-        <Text className="text-stone-400 text-xs mb-6">
-          Condiciones predeterminadas y administración de cuenta
-        </Text>
-
-        {/* Tarjeta de Condiciones Predeterminadas (SCR-19) */}
-        <InterestSettingsCard
-          settings={settings}
-          onSave={updateSettings}
-          loading={saving}
-        />
-
-        {/* Tarjeta de Configuración de Mora (SCR-20) */}
-        <LateFeeSettingsCard
-          settings={settings}
-          onSave={updateSettings}
-          loading={saving}
-        />
-
-        {/* Tarjeta de Cuenta de Administrador (SCR-21) */}
-        <Animated.View
-          entering={reducedMotion ? undefined : FadeInUp.delay(100).duration(420).springify().damping(18).stiffness(160)}
-          className="bg-[#12131C] border border-[#232433] rounded-[24px] p-5 mb-5 shadow-xl shadow-black"
-        >
-          <Text className="text-stone-400 text-xs font-semibold uppercase tracking-wider mb-4">
-            Cuenta administrativa
-          </Text>
-
-          <View className="flex-row items-center mb-4">
-            <View className="w-12 h-12 rounded-xl bg-[#1A1215] border border-[#3A1F24] items-center justify-center mr-3.5">
-              <User size={22} color="#FF7854" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-white text-sm font-semibold">
-                Titular Prestamista
-              </Text>
-              <Text className="text-stone-400 text-xs mt-0.5 font-mono">
-                {user?.email ?? 'Sesión activa'}
-              </Text>
-            </View>
+        <Animated.View entering={screenEnter(0, reduced)} style={{ gap: 10, paddingHorizontal: 4, paddingTop: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.warm }} />
+            <Text style={{ color: colors.muted, fontFamily: fonts.semibold, fontSize: 12, letterSpacing: 2.2 }}>FEAT</Text>
           </View>
-
-          {/* Indicadores de Seguridad y Motor */}
-          <View className="space-y-2 pt-3 border-t border-[#1E2030]">
-            <View className="flex-row items-center justify-between py-1">
-              <View className="flex-row items-center">
-                <Database size={13} color="#9CA3AF" />
-                <Text className="text-zinc-400 text-xs ml-2">Base de datos</Text>
-              </View>
-              <Text className="text-emerald-400 text-xs font-mono font-semibold">
-                Supabase PostgreSQL
-              </Text>
-            </View>
-
-            <View className="flex-row items-center justify-between py-1">
-              <View className="flex-row items-center">
-                <ShieldCheck size={13} color="#10B981" />
-                <Text className="text-zinc-400 text-xs ml-2">Aislamiento RLS</Text>
-              </View>
-              <Text className="text-zinc-300 text-xs font-mono font-medium">
-                Activo y verificado
-              </Text>
-            </View>
-
-            <View className="flex-row items-center justify-between py-1">
-              <View className="flex-row items-center">
-                <Clock size={13} color="#FF7854" />
-                <Text className="text-zinc-400 text-xs ml-2">Inactividad</Text>
-              </View>
-              <Text className="text-zinc-300 text-xs font-mono">
-                Cierre auto en 15m
-              </Text>
-            </View>
-          </View>
+          <AppText variant="title" accessibilityRole="header" style={{ fontSize: 40, lineHeight: 42, letterSpacing: -1.8 }}>
+            Configuración
+          </AppText>
+          <AppText variant="body">Condiciones predeterminadas y administración de cuenta</AppText>
         </Animated.View>
 
-        {/* Tarjeta Informativa de Aplicación FEAT */}
-        <Animated.View
-          entering={reducedMotion ? undefined : FadeInUp.delay(140).duration(420).springify().damping(18).stiffness(160)}
-          className="bg-[#0F1017] border border-[#1E2030] rounded-2xl p-4 mb-6"
-        >
-          <View className="flex-row items-center justify-between mb-2">
-            <View className="flex-row items-center gap-1.5">
-              <Smartphone size={14} color="#FF7854" />
-              <Text className="text-white text-xs font-bold font-mono">
-                FEAT · Cartera Privada
-              </Text>
-            </View>
-            <View className="bg-[#1C1E2B] px-2 py-0.5 rounded-full">
-              <Text className="text-zinc-400 text-[10px] font-mono">v1.0.0</Text>
-            </View>
-          </View>
+        {/* Condiciones predeterminadas (SCR-19) */}
+        <InterestSettingsCard settings={settings} onSave={updateSettings} loading={saving} />
 
-          <Text className="text-zinc-500 text-[11px] leading-relaxed">
-            Aplicación móvil privada para gestión integral de créditos personales, liquidación de intereses sobre saldo, cobro de mora y registro inmutable de movimientos en pesos colombianos (COP).
-          </Text>
+        {/* Configuración de mora (SCR-20) */}
+        <LateFeeSettingsCard settings={settings} onSave={updateSettings} loading={saving} />
+
+        {/* Cuenta de administrador (SCR-21) */}
+        <Animated.View entering={screenEnter(4, reduced)}>
+          <Card variant="ink" style={{ padding: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <AppText variant="sec" style={{ fontSize: 20 }}>
+                Cuenta administrativa
+              </AppText>
+              <Text style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 10, letterSpacing: 0.8 }}>SCR-21</Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.line }}>
+              <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: '#26262A', alignItems: 'center', justifyContent: 'center' }}>
+                <User size={22} color={colors.warm} />
+              </View>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={{ color: colors.warm, fontFamily: fonts.semibold, fontSize: 16 }}>Titular Prestamista</Text>
+                <Text style={{ color: '#B4B4B9', fontFamily: fonts.regular, fontSize: 12 }}>{user?.email ?? 'Sesión activa'}</Text>
+              </View>
+            </View>
+
+            <InfoRow icon={<Database size={14} color={colors.muted2} />} k="Base de datos" v="Supabase PostgreSQL" vColor={colors.okSoft} />
+            <InfoRow icon={<ShieldCheck size={14} color={colors.okSoft} />} k="Aislamiento RLS" v="Activo y verificado" />
+            <InfoRow icon={<Clock size={14} color={colors.muted2} />} k="Inactividad" v="Cierre auto en 15m" last />
+          </Card>
         </Animated.View>
 
-        {/* Botón de Cerrar Sesión */}
-        <AnimatedPressable
-          onPress={signOut}
-          disabled={authLoading}
-          style={{ height: 48 }}
-          className="w-full bg-[#FB3758]/10 border border-[#FB3758]/40 active:bg-[#FB3758]/25 rounded-2xl flex-row items-center justify-center"
-        >
-          {authLoading ? (
-            <ActivityIndicator size="small" color="#FB3758" />
-          ) : (
-            <>
-              <LogOut size={16} color="#FB3758" />
-              <Text className="text-[#FB3758] text-xs font-bold ml-2">
-                Cerrar sesión
-              </Text>
-            </>
-          )}
-        </AnimatedPressable>
+        {/* Tarjeta informativa de la aplicación */}
+        <Animated.View entering={screenEnter(5, reduced)}>
+          <Card variant="dark" radius={26} style={{ paddingHorizontal: 20, paddingVertical: 18, gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+                <Smartphone size={15} color={colors.warm} />
+                <Text style={{ color: colors.warm, fontFamily: fonts.semibold, fontSize: 14 }}>FEAT · Cartera Privada</Text>
+              </View>
+              <Chip label="v1.0.0" />
+            </View>
+            <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18 }}>
+              Aplicación móvil privada para gestión integral de créditos personales, liquidación de intereses sobre saldo, cobro de mora y registro inmutable de movimientos en pesos colombianos (COP).
+            </Text>
+          </Card>
+        </Animated.View>
+
+        {/* Cerrar sesión */}
+        <Animated.View entering={screenEnter(6, reduced)}>
+          <Button
+            label="Cerrar sesión"
+            variant="danger"
+            size="lg"
+            onPress={signOut}
+            loading={authLoading}
+            haptic="medium"
+            icon={<LogOut size={16} color="#000000" />}
+            style={{ width: '100%' }}
+          />
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   )
