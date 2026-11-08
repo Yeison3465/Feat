@@ -1,14 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react'
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-} from 'react-native'
+import { View, Text, KeyboardAvoidingView, Platform, ScrollView } from 'react-native'
+import Animated, { useReducedMotion } from 'react-native-reanimated'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
@@ -27,12 +19,21 @@ import { CreatePaymentDTO, PaymentMethod } from '../types'
 import { paymentsService } from '../services/payments.service'
 import { LoanWithDetails } from '../../loans/types'
 import { formatCOP, parseCOP } from '../../../shared/utils/currency'
-import { getInitials } from '../../../shared/utils/initials'
 import { getSafeBottomInset } from '../../../shared/utils/responsive'
 import { generateUUID } from '../../../shared/utils/uuid'
 import { ErrorMessage } from '../../../shared/components/ErrorMessage'
 import { DatePickerModal } from '../../../shared/components/DatePickerModal'
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated'
+import { AnimatedPressable } from '../../../shared/components/AnimatedPressable'
+import { AppText } from '../../../shared/ui/AppText'
+import { Avatar } from '../../../shared/ui/Avatar'
+import { Button } from '../../../shared/ui/Button'
+import { Card } from '../../../shared/ui/Card'
+import { Chip } from '../../../shared/ui/Chip'
+import { CountUpText } from '../../../shared/ui/CountUpText'
+import { Field } from '../../../shared/ui/Field'
+import { screenEnter } from '../../../shared/motion'
+import { haptic } from '../../../shared/haptics'
+import { colors, fonts } from '../../../shared/theme/tokens'
 
 interface PaymentFormProps {
   readonly loan: LoanWithDetails
@@ -40,12 +41,35 @@ interface PaymentFormProps {
   readonly loading: boolean
 }
 
+const METHODS: ReadonlyArray<{ id: PaymentMethod; label: string; Icon: typeof Banknote }> = [
+  { id: 'efectivo', label: 'Efectivo', Icon: Banknote },
+  { id: 'transferencia', label: 'Nequi / Transf.', Icon: Smartphone },
+  { id: 'otro', label: 'Otro', Icon: CreditCard },
+]
+
+// Fila de la previsualización: punto de color + etiqueta a la izquierda, importe a la derecha
+const PvRow: React.FC<{ readonly label: string; readonly value: string; readonly dot?: string; readonly valueColor?: string; readonly icon?: React.ReactNode }> = ({
+  label,
+  value,
+  dot,
+  valueColor = colors.warm,
+  icon,
+}) => (
+  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+      {dot ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: dot }} /> : icon}
+      <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 13, flexShrink: 1 }}>{label}</Text>
+    </View>
+    <Text style={{ color: valueColor, fontFamily: fonts.semibold, fontSize: 14 }}>{value}</Text>
+  </View>
+)
+
 export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loading }) => {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const reduced = useReducedMotion()
 
   const borrowerName = loan.persona?.nombre || 'Prestatario'
-  const initials = getInitials(borrowerName)
   const shortCode = `PR-${loan.id.slice(0, 4).toUpperCase()}`
 
   // Métricas financieras calculadas
@@ -112,6 +136,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
   }
 
   const handleQuickAmount = (val: number) => {
+    haptic('selection')
     setMontoText(val.toString())
     idempotencyKeyRef.current = generateUUID()
     if (montoError) setMontoError(null)
@@ -147,389 +172,328 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
         notas: notas.trim() || null,
         clave_idempotencia: idempotencyKeyRef.current,
       })
+      haptic('success')
     } catch (err: any) {
       setFormError(err.message || 'Error al registrar el pago. Puedes reintentar de forma segura.')
     }
   }
 
-  return (
-    <View style={{ paddingTop: Math.max(insets.top, 12) }} className="flex-1 bg-[#060709]">
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        className="flex-1"
-      >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1, paddingBottom: 28 }}
-          keyboardShouldPersistTaps="handled"
-          className="px-6 max-w-md mx-auto w-full"
-        >
-          {/* Cabecera Superior con Botón Cancelar */}
-          <Animated.View
-            entering={FadeInDown.duration(260)}
-            className="flex-row items-center justify-between mt-2 mb-6"
-          >
-            <Pressable
-              onPress={() => router.back()}
-              className="flex-row items-center py-2 pr-4"
-              hitSlop={10}
-            >
-              <ArrowLeft size={20} color="#9CA3AF" />
-              <Text className="text-zinc-400 text-sm font-medium ml-2">Cancelar</Text>
-            </Pressable>
+  const exceeds = preview.excedeSaldoTotal
+  const quickChips: Array<{ key: string; label: string; amount: number; ok?: boolean }> = []
+  if (interesProximaCuota > 0) {
+    quickChips.push({ key: 'int', label: `Interés (${formatCOP(interesProximaCuota)})`, amount: interesProximaCuota })
+  }
+  if (valorProximaCuota > 0 && valorProximaCuota !== interesProximaCuota) {
+    quickChips.push({ key: 'cuota', label: `Cuota (${formatCOP(valorProximaCuota)})`, amount: valorProximaCuota })
+  }
+  if (saldoExigibleTotal > 0) {
+    quickChips.push({ key: 'total', label: `Liquidar total (${formatCOP(saldoExigibleTotal)})`, amount: saldoExigibleTotal, ok: true })
+  }
 
-            <Text className="text-zinc-500 text-xs font-mono uppercase tracking-widest">
-              Registrar Recaudo
-            </Text>
+  const planLabel =
+    loan.tipo_amortizacion === 'solo_interes'
+      ? 'Solo interés'
+      : loan.tipo_amortizacion === 'pago_unico'
+        ? 'Pago único'
+        : 'Cuotas fijas'
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.app, paddingTop: Math.max(insets.top, 12) }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, gap: 24 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Cabecera con Cancelar */}
+          <Animated.View
+            entering={screenEnter(0, reduced)}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+          >
+            <Button
+              label="Cancelar"
+              variant="ghost"
+              size="sm"
+              onPress={() => router.back()}
+              icon={<ArrowLeft size={16} color={colors.warm} />}
+            />
+            <Chip glass label="Registrar Recaudo" />
           </Animated.View>
 
           {/* Título */}
-          <Animated.View entering={FadeInDown.delay(60).duration(280)} className="mb-5">
-            <Text className="text-white text-3xl font-bold tracking-tight">
+          <Animated.View entering={screenEnter(1, reduced)} style={{ gap: 8, paddingHorizontal: 4 }}>
+            <AppText variant="title" accessibilityRole="header" style={{ fontSize: 40, lineHeight: 42, letterSpacing: -1.8 }}>
               Registrar pago
-            </Text>
-            <Text className="text-zinc-400 text-xs mt-1">
-              Abono a capital o intereses con trazabilidad contable inmediata
-            </Text>
+            </AppText>
+            <AppText variant="body">Abono a capital o intereses con trazabilidad contable inmediata</AppText>
           </Animated.View>
 
           {formError && <ErrorMessage message={formError} onRetry={handleSubmit} />}
 
-          {/* Ficha Resumen del Préstamo */}
-          <Animated.View
-            entering={FadeInDown.delay(120).duration(300).springify()}
-            className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-5 mb-5 shadow-2xl shadow-black"
-          >
-            <View className="flex-row items-center justify-between mb-4">
-              <View className="flex-row items-center flex-1 mr-2">
-                <View className="w-11 h-11 rounded-2xl bg-[#191316] border border-[#2F191D] items-center justify-center mr-3 shadow-md shadow-black">
-                  <Text className="text-[#FF7854] text-base font-bold font-mono">
-                    {initials}
-                  </Text>
+          {/* Ficha resumen del préstamo */}
+          <Animated.View entering={screenEnter(2, reduced)}>
+            <Card variant="ink" style={{ padding: 16, gap: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 }}>
+                  <Avatar name={borrowerName} size={56} />
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text numberOfLines={1} style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 17 }}>
+                      {borrowerName}
+                    </Text>
+                    <Text numberOfLines={1} style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 12 }}>
+                      #{shortCode} · {planLabel}
+                    </Text>
+                  </View>
                 </View>
-                <View className="flex-1">
-                  <Text className="text-white text-base font-bold tracking-tight" numberOfLines={1}>
-                    {borrowerName}
-                  </Text>
-                  <Text className="text-zinc-400 text-xs mt-0.5 font-mono">
-                    #{shortCode} ·{' '}
-                    {loan.tipo_amortizacion === 'solo_interes'
-                      ? 'Solo interés'
-                      : loan.tipo_amortizacion === 'pago_unico'
-                      ? 'Pago único'
-                      : 'Cuotas fijas'}
-                  </Text>
-                </View>
+                <Chip label="Activo" style={{ height: 28 }} />
               </View>
 
-              <View className="bg-[#D34524]/15 border border-[#D34524]/30 px-2.5 py-1 rounded-full">
-                <Text className="text-[#FF7854] text-[11px] font-bold">Activo</Text>
+              <View style={{ gap: 8, padding: 18, borderRadius: 24, backgroundColor: colors.card2 }}>
+                <Text style={{ color: colors.muted, fontFamily: fonts.medium, fontSize: 12 }}>Saldo total adeudado</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                  <CountUpText
+                    value={saldoExigibleTotal}
+                    style={{ color: colors.warm, fontFamily: fonts.semibold, fontSize: 36, lineHeight: 38, letterSpacing: -1.4, flexShrink: 1, padding: 0 }}
+                  />
+                  <Text style={{ color: colors.muted2, fontFamily: fonts.medium, fontSize: 13, marginLeft: 6 }}>COP</Text>
+                </View>
+                <View style={{ height: 1, backgroundColor: colors.line, marginTop: 6, marginBottom: 2 }} />
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+                  <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 12 }}>
+                    Capital: <Text style={{ color: colors.warm, fontFamily: fonts.medium }}>{formatCOP(capitalPendiente)}</Text>
+                  </Text>
+                  <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 12 }}>
+                    Interés: <Text style={{ color: colors.warm, fontFamily: fonts.medium }}>{formatCOP(interesPendienteTotal)}</Text>
+                  </Text>
+                </View>
               </View>
-            </View>
-
-            {/* Saldo adeudado actual */}
-            <View className="bg-[#0A0B10] rounded-2xl p-4 border border-[#1C1E2B]">
-              <Text className="text-zinc-500 text-[11px] uppercase font-semibold tracking-wider">
-                Saldo total adeudado
-              </Text>
-              <View className="flex-row items-baseline gap-1.5 mt-1">
-                <Text className="text-white text-2xl font-extrabold font-mono">
-                  {formatCOP(saldoExigibleTotal)}
-                </Text>
-                <Text className="text-zinc-500 text-xs font-mono">COP</Text>
-              </View>
-              <View className="flex-row items-center justify-between mt-2 pt-2 border-t border-[#161722]">
-                <Text className="text-zinc-400 text-xs">
-                  Capital: <Text className="text-white font-mono">{formatCOP(capitalPendiente)}</Text>
-                </Text>
-                <Text className="text-zinc-400 text-xs">
-                  Interés:{' '}
-                  <Text className="text-[#FF7854] font-mono">{formatCOP(interesPendienteTotal)}</Text>
-                </Text>
-              </View>
-            </View>
+            </Card>
           </Animated.View>
 
-          {/* Formulario de Pago */}
-          <Animated.View
-            entering={FadeInUp.delay(180).duration(300).springify()}
-            className="bg-[#12131A] border border-[#1E2030] rounded-3xl p-5 mb-5 shadow-2xl shadow-black"
-          >
-            {/* Campo: Monto a pagar */}
-            <View className="mb-5">
-              <View className="flex-row items-center justify-between mb-2">
-                <Text className="text-zinc-300 text-xs font-medium ml-1">
-                  Monto recibido <Text className="text-[#FF7854]">*</Text>
-                </Text>
-                <Text className="text-zinc-500 text-[10px] uppercase font-semibold">Obligatorio</Text>
-              </View>
+          <Animated.View entering={screenEnter(3, reduced)} style={{ gap: 28 }}>
+            {/* Monto recibido */}
+            <View style={{ gap: 12 }}>
+              <Field
+                label="Monto recibido *"
+                hint="Obligatorio"
+                value={montoText}
+                onChangeText={handleMontoChange}
+                error={montoError}
+                placeholder="0"
+                keyboardType="numeric"
+                suffix="COP"
+                prefix={({ focused, error }) => (
+                  <DollarSign size={18} color={error || exceeds ? colors.danger : focused ? colors.warm : colors.muted2} />
+                )}
+              />
 
-              <View
-                className={`flex-row items-center px-4 bg-[#0A0B10] rounded-2xl border ${
-                  montoError || preview.excedeSaldoTotal ? 'border-[#FB3758]' : 'border-[#232433]'
-                }`}
-                style={{ height: 52 }}
-              >
-                <DollarSign size={18} color="#FF7854" />
-                <TextInput
-                  value={montoText}
-                  onChangeText={handleMontoChange}
-                  placeholder="0"
-                  placeholderTextColor="#4B5563"
-                  keyboardType="numeric"
-                  className="flex-1 ml-2 text-white text-lg font-mono font-bold"
-                />
-                <Text className="text-zinc-500 text-xs font-mono font-semibold ml-2">COP</Text>
-              </View>
-              {montoError && (
-                <Text className="text-[#FB3758] text-xs mt-1.5 ml-1">{montoError}</Text>
+              {/* Atajos de monto según la modalidad */}
+              {quickChips.length > 0 && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {quickChips.map((q) => (
+                    <AnimatedPressable
+                      key={q.key}
+                      onPress={() => handleQuickAmount(q.amount)}
+                      accessibilityRole="button"
+                      style={{
+                        minHeight: 44,
+                        paddingHorizontal: 16,
+                        borderRadius: 999,
+                        justifyContent: 'center',
+                        backgroundColor: q.ok ? 'rgba(127,214,164,0.12)' : colors.card,
+                        borderWidth: 1,
+                        borderColor: q.ok ? 'rgba(127,214,164,0.35)' : colors.line,
+                      }}
+                    >
+                      <Text style={{ color: q.ok ? colors.okSoft : colors.warm, fontFamily: fonts.medium, fontSize: 13 }}>{q.label}</Text>
+                    </AnimatedPressable>
+                  ))}
+                </View>
               )}
-
-              {/* Botones de atajo rápido según la modalidad */}
-              <View className="flex-row flex-wrap gap-2 mt-2.5">
-                {interesProximaCuota > 0 && (
-                  <Pressable
-                    onPress={() => handleQuickAmount(interesProximaCuota)}
-                    className="py-1.5 px-3 bg-[#0A0B10] border border-[#232433] rounded-xl items-center active:bg-[#1E2030]"
-                  >
-                    <Text className="text-[#FF7854] text-[11px] font-semibold">
-                      Interés ({formatCOP(interesProximaCuota)})
-                    </Text>
-                  </Pressable>
-                )}
-
-                {valorProximaCuota > 0 && valorProximaCuota !== interesProximaCuota && (
-                  <Pressable
-                    onPress={() => handleQuickAmount(valorProximaCuota)}
-                    className="py-1.5 px-3 bg-[#0A0B10] border border-[#232433] rounded-xl items-center active:bg-[#1E2030]"
-                  >
-                    <Text className="text-zinc-200 text-[11px] font-semibold">
-                      Cuota ({formatCOP(valorProximaCuota)})
-                    </Text>
-                  </Pressable>
-                )}
-
-                {saldoExigibleTotal > 0 && (
-                  <Pressable
-                    onPress={() => handleQuickAmount(saldoExigibleTotal)}
-                    className="py-1.5 px-3 bg-[#0A0B10] border border-[#232433] rounded-xl items-center active:bg-[#1E2030]"
-                  >
-                    <Text className="text-emerald-400 text-[11px] font-semibold">
-                      Liquidar total ({formatCOP(saldoExigibleTotal)})
-                    </Text>
-                  </Pressable>
-                )}
-              </View>
             </View>
 
-            {/* Previsualización de la Distribución en Vivo (FL-04 Paso 6) */}
+            {/* Previsualización de la distribución en vivo (FL-04 paso 6) */}
             {montoNum > 0 && (
               <View
-                className={`mb-5 p-4 rounded-2xl border ${
-                  preview.excedeSaldoTotal
-                    ? 'bg-rose-950/20 border-rose-500/40'
-                    : preview.liquidaCreditoCompleto
-                    ? 'bg-emerald-950/20 border-emerald-500/35'
-                    : 'bg-[#0A0B10] border-[#1E2030]'
-                }`}
+                accessibilityLiveRegion="polite"
+                style={{
+                  gap: 16,
+                  padding: 18,
+                  borderRadius: 28,
+                  backgroundColor: exceeds ? 'rgba(255,107,94,0.08)' : preview.liquidaCreditoCompleto ? 'rgba(127,214,164,0.08)' : colors.ink,
+                  borderWidth: 1,
+                  borderColor: exceeds ? 'rgba(255,107,94,0.45)' : preview.liquidaCreditoCompleto ? 'rgba(127,214,164,0.4)' : colors.line,
+                }}
               >
-                <View className="flex-row items-center justify-between mb-2.5">
-                  <View className="flex-row items-center gap-1.5">
-                    <Sparkles
-                      size={14}
-                      color={preview.liquidaCreditoCompleto ? '#10B981' : '#FF7854'}
-                    />
-                    <Text className="text-zinc-300 text-xs font-bold uppercase tracking-wider">
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+                    <Sparkles size={14} color={preview.liquidaCreditoCompleto ? colors.okSoft : colors.muted} />
+                    <Text style={{ color: colors.warm, fontFamily: fonts.semibold, fontSize: 12, flexShrink: 1 }}>
                       Previsualización de distribución
                     </Text>
                   </View>
-                  {preview.liquidaCreditoCompleto && (
-                    <View className="bg-emerald-500/20 px-2 py-0.5 rounded-full">
-                      <Text className="text-emerald-400 text-[10px] font-bold">
-                        Liquida 100%
-                      </Text>
-                    </View>
-                  )}
+                  {preview.liquidaCreditoCompleto && <Chip tone="ok" label="Liquida 100%" />}
                 </View>
 
-                {preview.excedeSaldoTotal ? (
-                  <Text className="text-[#FB3758] text-xs leading-4">
-                    El monto ingresado supera la deuda total de {formatCOP(saldoExigibleTotal)} COP.
-                    Ajusta el valor para no generar saldos negativos.
+                {exceeds ? (
+                  <Text style={{ color: colors.dangerSoft, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20 }}>
+                    El monto ingresado supera la deuda total de {formatCOP(saldoExigibleTotal)} COP. Ajusta el valor para no generar saldos negativos.
                   </Text>
                 ) : (
-                  <View className="space-y-1.5">
-                    {preview.abonoMora > 0 && (
-                      <View className="flex-row justify-between items-center py-1">
-                        <Text className="text-zinc-400 text-xs">1° Imputación a mora:</Text>
-                        <Text className="text-rose-400 text-xs font-mono font-bold">
-                          {formatCOP(preview.abonoMora)}
-                        </Text>
-                      </View>
-                    )}
-
-                    <View className="flex-row justify-between items-center py-1">
-                      <Text className="text-zinc-400 text-xs">Interés ordinario cubierto:</Text>
-                      <Text className="text-[#FF7854] text-xs font-mono font-bold">
-                        {formatCOP(preview.abonoInteres)}
-                      </Text>
+                  <>
+                    {/* Barra de distribución: mora · interés · capital */}
+                    <View style={{ flexDirection: 'row', height: 10, borderRadius: 999, overflow: 'hidden', gap: 3 }} accessibilityElementsHidden>
+                      {preview.abonoMora > 0 && <View style={{ flex: preview.abonoMora, backgroundColor: colors.danger }} />}
+                      {preview.abonoInteres > 0 && <View style={{ flex: preview.abonoInteres, backgroundColor: colors.warm }} />}
+                      {preview.abonoCapital > 0 && <View style={{ flex: preview.abonoCapital, backgroundColor: colors.ok }} />}
                     </View>
 
-                    <View className="flex-row justify-between items-center py-1">
-                      <Text className="text-zinc-400 text-xs">Abono directo a capital:</Text>
-                      <Text className="text-emerald-400 text-xs font-mono font-bold">
-                        {formatCOP(preview.abonoCapital)}
-                      </Text>
-                    </View>
-
-                    <View className="pt-2 mt-1 border-t border-[#1A1C29] flex-row justify-between items-center">
-                      <View className="flex-row items-center gap-1">
-                        <TrendingDown size={13} color="#9CA3AF" />
-                        <Text className="text-zinc-400 text-[11px]">Nuevo capital pendiente:</Text>
-                      </View>
-                      <Text className="text-white text-xs font-mono font-bold">
-                        {formatCOP(preview.nuevoCapitalPendiente)}
-                      </Text>
-                    </View>
-
-                    {!preview.liquidaCreditoCompleto &&
-                      (loan.tipo_amortizacion === 'solo_interes' ||
-                        loan.tipo_amortizacion === 'pago_unico') &&
-                      preview.nuevoInteresPendiente === 0 && (
-                        <View className="flex-row justify-between items-center pt-0.5">
-                          <Text className="text-zinc-500 text-[11px]">
-                            Próximo interés mensual ({loan.tasa_mensual}%):
-                          </Text>
-                          <Text className="text-zinc-300 text-[11px] font-mono font-semibold">
-                            {formatCOP(preview.proximoInteresMensualEstimado)} COP
-                          </Text>
-                        </View>
+                    <View style={{ gap: 12 }}>
+                      {preview.abonoMora > 0 && (
+                        <PvRow label="1° Imputación a mora:" value={formatCOP(preview.abonoMora)} dot={colors.danger} valueColor={colors.dangerSoft} />
                       )}
-                  </View>
+                      <PvRow label="Interés ordinario cubierto:" value={formatCOP(preview.abonoInteres)} dot={colors.warm} />
+                      <PvRow label="Abono directo a capital:" value={formatCOP(preview.abonoCapital)} dot={colors.ok} valueColor={colors.okSoft} />
+                      <View style={{ height: 1, backgroundColor: colors.line }} />
+                      <PvRow
+                        label="Nuevo capital pendiente:"
+                        value={formatCOP(preview.nuevoCapitalPendiente)}
+                        icon={<TrendingDown size={13} color={colors.muted2} />}
+                      />
+                      {!preview.liquidaCreditoCompleto &&
+                        (loan.tipo_amortizacion === 'solo_interes' || loan.tipo_amortizacion === 'pago_unico') &&
+                        preview.nuevoInteresPendiente === 0 && (
+                          <PvRow
+                            label={`Próximo interés mensual (${loan.tasa_mensual}%):`}
+                            value={`${formatCOP(preview.proximoInteresMensualEstimado)} COP`}
+                            valueColor={colors.muted}
+                          />
+                        )}
+                    </View>
+                  </>
                 )}
               </View>
             )}
 
-            {/* Campo: Fecha de Recepción */}
-            <View className="mb-5">
-              <Text className="text-zinc-300 text-xs font-medium mb-2 ml-1">
-                Fecha de recepción del pago
-              </Text>
-              <Pressable
+            {/* Fecha de recepción */}
+            <View style={{ gap: 14 }}>
+              <Text style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 14 }}>Fecha de recepción del pago</Text>
+              <AnimatedPressable
                 onPress={() => setShowDatePicker(true)}
-                className="bg-[#0A0B10] border border-[#232433] rounded-2xl p-3.5 flex-row items-center justify-between active:border-zinc-700"
+                accessibilityRole="button"
+                accessibilityLabel={`Fecha de recepción: ${fechaRecepcion}. Cambiar`}
               >
-                <View className="flex-row items-center gap-2.5">
-                  <Calendar size={16} color="#FF7854" />
-                  <Text className="text-white text-xs font-bold font-mono">
-                    {fechaRecepcion}
-                  </Text>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    minHeight: 64,
+                    paddingLeft: 18,
+                    paddingRight: 14,
+                    borderRadius: 22,
+                    backgroundColor: colors.card,
+                    borderWidth: 1,
+                    borderColor: colors.line,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <Calendar size={18} color={colors.warm} />
+                    <Text style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 16 }}>{fechaRecepcion}</Text>
+                  </View>
+                  <Chip label="Cambiar" style={{ height: 32, paddingHorizontal: 14 }} />
                 </View>
-                <Text className="text-[#FF7854] text-xs font-semibold">Cambiar</Text>
-              </Pressable>
+              </AnimatedPressable>
             </View>
 
-            {/* Campo: Método de Pago */}
-            <View className="mb-5">
-              <Text className="text-zinc-300 text-xs font-medium mb-2 ml-1">
-                Método de pago
-              </Text>
-              <View className="flex-row gap-2">
-                {[
-                  { id: 'efectivo', label: 'Efectivo', icon: Banknote },
-                  { id: 'transferencia', label: 'Nequi / Transf.', icon: Smartphone },
-                  { id: 'otro', label: 'Otro', icon: CreditCard },
-                ].map((item) => {
-                  const isSelected = metodoPago === item.id
-                  const IconComp = item.icon
+            {/* Método de pago */}
+            <View style={{ gap: 14 }}>
+              <Text style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 14 }}>Método de pago</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {METHODS.map(({ id, label, Icon }) => {
+                  const isSelected = metodoPago === id
                   return (
-                    <Pressable
-                      key={item.id}
-                      onPress={() => setMetodoPago(item.id as PaymentMethod)}
-                      className={`flex-1 p-2.5 rounded-2xl border items-center justify-center flex-row gap-1.5 active:opacity-80 ${
-                        isSelected
-                          ? 'bg-[#D34524]/20 border-[#D34524]'
-                          : 'bg-[#0A0B10] border-[#232433]'
-                      }`}
+                    <AnimatedPressable
+                      key={id}
+                      onPress={() => {
+                        haptic('selection')
+                        setMetodoPago(id)
+                      }}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: isSelected }}
+                      containerStyle={{ flex: 1 }}
+                      style={{
+                        minHeight: 72,
+                        paddingHorizontal: 4,
+                        paddingVertical: 10,
+                        borderRadius: 20,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        backgroundColor: isSelected ? colors.warm : colors.card,
+                        borderWidth: 1,
+                        borderColor: isSelected ? colors.warm : colors.line,
+                      }}
                     >
-                      <IconComp
-                        size={14}
-                        color={isSelected ? '#FF7854' : '#6B7280'}
-                      />
+                      <Icon size={18} color={isSelected ? colors.onLight : colors.muted2} />
                       <Text
-                        className={`text-xs font-semibold ${
-                          isSelected ? 'text-white' : 'text-zinc-400'
-                        }`}
+                        style={{
+                          color: isSelected ? colors.onLight : colors.warm,
+                          fontFamily: fonts.medium,
+                          fontSize: 12,
+                          textAlign: 'center',
+                        }}
                       >
-                        {item.label}
+                        {label}
                       </Text>
-                    </Pressable>
+                    </AnimatedPressable>
                   )
                 })}
               </View>
             </View>
 
-            {/* Campo: Notas u observaciones */}
-            <View className="mb-2">
-              <Text className="text-zinc-300 text-xs font-medium mb-2 ml-1">
-                Notas privadas o referencia (opcional)
-              </Text>
-              <View className="px-4 py-2.5 bg-[#0A0B10] rounded-xl border border-[#232433] min-h-[70px]">
-                <TextInput
-                  value={notas}
-                  onChangeText={setNotas}
-                  placeholder="Ej. Transferencia Nequi M-9281, pagó en el local..."
-                  placeholderTextColor="#4B5563"
-                  multiline
-                  numberOfLines={2}
-                  className="text-white text-xs"
-                />
-              </View>
-            </View>
+            {/* Notas */}
+            <Field
+              label="Notas privadas o referencia (opcional)"
+              value={notas}
+              onChangeText={setNotas}
+              placeholder="Ej. Transferencia Nequi M-9281, pagó en el local..."
+              multiline
+              numberOfLines={3}
+            />
           </Animated.View>
 
           {/* Aviso de transaccionalidad e idempotencia */}
-          <View className="flex-row items-center justify-center gap-1.5 mb-2 px-2">
-            <ShieldCheck size={14} color="#6B7280" />
-            <Text className="text-zinc-500 text-[11px] text-center">
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 8 }}>
+            <ShieldCheck size={14} color={colors.muted2} />
+            <Text style={{ flexShrink: 1, color: colors.muted2, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, textAlign: 'center' }}>
               Operación protegida con clave de idempotencia contra cobros duplicados
             </Text>
           </View>
         </ScrollView>
 
-        {/* Footer Ergonómico Pinned con Zona Segura Responsiva */}
-        <Animated.View
-          entering={FadeInUp.delay(240).duration(280)}
+        {/* Acción fija abajo */}
+        <View
           style={{
-            paddingBottom: getSafeBottomInset(insets.bottom, 20),
             paddingTop: 12,
-            paddingHorizontal: 24,
+            paddingHorizontal: 16,
+            paddingBottom: getSafeBottomInset(insets.bottom, 20),
+            backgroundColor: colors.app,
           }}
-          className="bg-[#060709] border-t border-[#161722] w-full"
         >
-          <View className="max-w-md mx-auto w-full">
-            <Pressable
-              onPress={handleSubmit}
-              disabled={loading || preview.excedeSaldoTotal}
-              style={{ height: 52 }}
-              className={`w-full rounded-2xl items-center justify-center flex-row shadow-lg shadow-[#D34524]/20 active:bg-[#E54F2C] ${
-                loading || preview.excedeSaldoTotal ? 'bg-[#D34524]/50' : 'bg-[#D34524]'
-              }`}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <View className="flex-row items-center justify-center gap-2">
-                  <Check size={18} color="#FFFFFF" strokeWidth={2.5} />
-                  <Text className="text-white text-[15px] font-bold tracking-wide">
-                    Confirmar pago de {formatCOP(montoNum)}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
-          </View>
-        </Animated.View>
+          <Button
+            label={`Confirmar pago de ${formatCOP(montoNum)}`}
+            size="lg"
+            onPress={handleSubmit}
+            loading={loading}
+            disabled={exceeds}
+            icon={<Check size={16} color="#000000" strokeWidth={2.5} />}
+            style={{ width: '100%' }}
+          />
+        </View>
 
-        {/* Modal de Fecha de Recepción */}
+        {/* Fecha de recepción */}
         <DatePickerModal
           visible={showDatePicker}
           onClose={() => setShowDatePicker(false)}

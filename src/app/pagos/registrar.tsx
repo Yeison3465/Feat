@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { View, Text, ActivityIndicator, Pressable } from 'react-native'
+import { View, Text, ActivityIndicator } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { ArrowLeft, AlertCircle } from 'lucide-react-native'
@@ -7,6 +7,8 @@ import { useLoans } from '../../modules/loans/hooks/useLoans'
 import { paymentsService } from '../../modules/payments/services/payments.service'
 import { PaymentForm } from '../../modules/payments/components/PaymentForm'
 import { CreatePaymentDTO } from '../../modules/payments/types'
+import { Button } from '../../shared/ui/Button'
+import { colors, fonts } from '../../shared/theme/tokens'
 
 export default function RegistrarPagoScreen() {
   const router = useRouter()
@@ -33,32 +35,26 @@ export default function RegistrarPagoScreen() {
 
   if (loansLoading) {
     return (
-      <View className="flex-1 bg-[#060709] items-center justify-center">
-        <ActivityIndicator size="small" color="#FF7854" />
-        <Text className="text-zinc-400 text-xs mt-3">Cargando datos del préstamo...</Text>
+      <View className="flex-1 bg-[#0A0A0B] items-center justify-center">
+        <ActivityIndicator size="small" color="#F5F5F3" />
+        <Text style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 12, marginTop: 12 }}>Cargando datos del préstamo...</Text>
       </View>
     )
   }
 
   if (!loan) {
     return (
-      <SafeAreaView className="flex-1 bg-[#060709] px-6 justify-center items-center">
-        <View className="w-16 h-16 rounded-2xl bg-[#160E12] border border-[#2F191D] items-center justify-center mb-4">
-          <AlertCircle size={28} color="#FB3758" />
+      <SafeAreaView className="flex-1 bg-[#0A0A0B] px-6 justify-center items-center">
+        <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,107,94,0.14)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+          <AlertCircle size={28} color={colors.dangerSoft} />
         </View>
-        <Text className="text-white text-lg font-bold text-center mb-1">
+        <Text style={{ color: colors.warm, fontFamily: fonts.semibold, fontSize: 20, textAlign: 'center', marginBottom: 4 }}>
           Préstamo no encontrado
         </Text>
-        <Text className="text-zinc-400 text-xs text-center max-w-[260px] mb-6">
+        <Text style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19, textAlign: 'center', maxWidth: 280, marginBottom: 24 }}>
           No se encontró el préstamo asociado para registrar este pago o no tienes permisos de acceso.
         </Text>
-        <Pressable
-          onPress={() => router.back()}
-          className="bg-[#151622] border border-[#232433] px-5 py-2.5 rounded-xl flex-row items-center"
-        >
-          <ArrowLeft size={16} color="#FF7854" />
-          <Text className="text-[#FF7854] text-xs font-semibold ml-2">Volver</Text>
-        </Pressable>
+        <Button label="Volver" variant="ghost" size="sm" onPress={() => router.back()} icon={<ArrowLeft size={16} color={colors.warm} />} />
       </SafeAreaView>
     )
   }
