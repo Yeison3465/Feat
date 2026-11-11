@@ -31,12 +31,14 @@ export const QuickBorrowersSection: React.FC<QuickBorrowersSectionProps> = ({ bo
   return (
     <View style={{ gap: 8 }}>
       {/* Cabecera */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <AppText variant="sec">Prestatarios activos</AppText>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+        <AppText variant="sec" style={{ flexShrink: 1 }}>
+          Prestatarios activos
+        </AppText>
         <AnimatedPressable
           onPress={() => router.navigate('/personas')}
           accessibilityRole="link"
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44 }}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44, flexShrink: 0 }}
         >
           <AppText variant="amt" style={{ fontSize: 13 }}>
             Ver directorio

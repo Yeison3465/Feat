@@ -156,6 +156,12 @@ export const LoanDetailView: React.FC<LoanDetailViewProps> = ({
   )
 
   const proximaCuota = cuotas.find((c) => !c.esta_liquidada) || cuotas[0]
+  // Interés generado por la cuota que toca cobrar (el del mes en curso)
+  const cuotaDelMes = loan.estado !== 'completado' && proximaCuota && !proximaCuota.esta_liquidada ? proximaCuota : null
+  const interesDelMes = cuotaDelMes ? cuotaDelMes.interes_esperado || 0 : 0
+  const interesDelMesPendiente = cuotaDelMes
+    ? Math.max(0, (cuotaDelMes.interes_esperado || 0) - (cuotaDelMes.interes_pagado || 0))
+    : 0
   const today = new Date().toISOString().split('T')[0]
   const isOverdue =
     proximaCuota && !proximaCuota.esta_liquidada && proximaCuota.fecha_vencimiento < today
@@ -298,6 +304,21 @@ export const LoanDetailView: React.FC<LoanDetailViewProps> = ({
                   </Text>
                 </View>
               </View>
+
+              {cuotaDelMes && (
+                <View style={{ flexDirection: 'row' }}>
+                  <GlassPanel
+                    label="Interés del mes"
+                    value={formatCOP(interesDelMes)}
+                    sub={
+                      interesDelMesPendiente > 0
+                        ? `Por cobrar: ${formatCOP(interesDelMesPendiente)} · vence ${formatDateLong(cuotaDelMes.fecha_vencimiento)}`
+                        : `Cobrado · vence ${formatDateLong(cuotaDelMes.fecha_vencimiento)}`
+                    }
+                    valueColor={interesDelMesPendiente > 0 ? colors.warm : colors.okSoft}
+                  />
+                </View>
+              )}
 
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <GlassPanel label="Capital pendiente" value={formatCOP(capitalPendiente)} sub={`de ${formatCOP(loan.capital_original)}`} />

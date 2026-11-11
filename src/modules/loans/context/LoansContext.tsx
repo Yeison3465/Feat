@@ -11,6 +11,7 @@ import {
   LoanSummaryMetrics,
   LoanWithDetails,
   ObligationItem,
+  PeriodSummary,
 } from '../types'
 import { useAuth } from '../../auth/hooks/useAuth'
 
@@ -27,6 +28,7 @@ interface LoansContextType {
   estadoFilter: LoanStatus | 'todos'
   dashboardPeriod: DashboardPeriod
   chartData: ChartPoint[]
+  periodSummary: PeriodSummary
   metrics: LoanSummaryMetrics
   setSearchQuery: (query: string) => void
   setEstadoFilter: (estado: LoanStatus | 'todos') => void
@@ -39,6 +41,23 @@ interface LoansContextType {
 }
 
 const LoansContext = createContext<LoansContextType | undefined>(undefined)
+
+// Ranura del gráfico a la que pertenece una fecha (misma partición que usan los pagos):
+// histórico = últimos 6 meses, mes actual = 4 semanas del mes, 30 días = 4 tramos hacia atrás.
+function periodSlotIndex(dateStr: string, period: DashboardPeriod, now: Date): number {
+  const d = new Date(`${dateStr}T00:00:00`)
+  if (period === 'historico') {
+    const diffMonths = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth())
+    return diffMonths >= 0 && diffMonths <= 5 ? 5 - diffMonths : -1
+  }
+  if (period === 'mes_actual') {
+    if (d.getFullYear() !== now.getFullYear() || d.getMonth() !== now.getMonth()) return -1
+    return Math.min(3, Math.floor((d.getDate() - 1) / 7))
+  }
+  const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays < 0 || diffDays > 30) return -1
+  return 3 - Math.min(3, Math.floor(diffDays / 7.5))
+}
 
 export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { session } = useAuth()
@@ -437,6 +456,19 @@ export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const currentYear = now.getFullYear()
     const currentMonth = now.getMonth()
 
+    // Suma lo que tocaba cobrar (interés + capital de las cuotas que vencen) en cada ranura
+    const addExpected = (pts: ChartPoint[]) => {
+      for (const loan of allLoans) {
+        if (loan.estado === 'cancelado') continue
+        for (const c of loan.cuotas ?? []) {
+          const idx = periodSlotIndex(c.fecha_vencimiento, dashboardPeriod, now)
+          if (idx >= 0 && idx < pts.length) {
+            pts[idx].expected = (pts[idx].expected ?? 0) + (c.interes_esperado || 0) + (c.capital_esperado || 0)
+          }
+        }
+      }
+    }
+
     if (dashboardPeriod === 'historico') {
       // Últimos 6 meses
       const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -455,17 +487,18 @@ export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           })
           .reduce((sum, p) => sum + (Number(p.monto) || 0), 0)
 
-        points.push({ label, amount: sumMonth })
+        points.push({ label, amount: sumMonth, expected: 0 })
       }
+      addExpected(points)
       return points
     }
 
     // Mes actual o últimos 30 días: 4 semanas (Figma: Sem 1 - 4)
     const points: ChartPoint[] = [
-      { label: 'Sem 1', amount: 0 },
-      { label: 'Sem 2', amount: 0 },
-      { label: 'Sem 3', amount: 0 },
-      { label: 'Sem 4', amount: 0 },
+      { label: 'Sem 1', amount: 0, expected: 0 },
+      { label: 'Sem 2', amount: 0, expected: 0 },
+      { label: 'Sem 3', amount: 0, expected: 0 },
+      { label: 'Sem 4', amount: 0, expected: 0 },
     ]
 
     for (const p of allPayments) {
@@ -490,8 +523,33 @@ export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     }
 
+    addExpected(points)
     return points
-  }, [allPayments, dashboardPeriod])
+  }, [allPayments, allLoans, dashboardPeriod])
+
+  // Cumplimiento del periodo: de lo que vencía en él, cuánto ya está cobrado
+  const periodSummary = useMemo<PeriodSummary>(() => {
+    const now = new Date()
+    let esperado = 0
+    let cobrado = 0
+    for (const loan of allLoans) {
+      if (loan.estado === 'cancelado') continue
+      for (const c of loan.cuotas ?? []) {
+        if (periodSlotIndex(c.fecha_vencimiento, dashboardPeriod, now) < 0) continue
+        esperado += (c.interes_esperado || 0) + (c.capital_esperado || 0)
+        cobrado +=
+          Math.min(c.interes_pagado || 0, c.interes_esperado || 0) +
+          Math.min(c.capital_pagado || 0, c.capital_esperado || 0)
+      }
+    }
+    const pendiente = Math.max(0, esperado - cobrado)
+    return {
+      esperado,
+      cobrado,
+      pendiente,
+      cumplimientoPct: esperado > 0 ? Math.min(100, (cobrado / esperado) * 100) : 0,
+    }
+  }, [allLoans, dashboardPeriod])
 
   const value = useMemo(
     () => ({
@@ -507,6 +565,7 @@ export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       estadoFilter,
       dashboardPeriod,
       chartData,
+      periodSummary,
       metrics,
       setSearchQuery,
       setEstadoFilter,
@@ -530,6 +589,7 @@ export const LoansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       estadoFilter,
       dashboardPeriod,
       chartData,
+      periodSummary,
       metrics,
       loadLoans,
       getLoanById,

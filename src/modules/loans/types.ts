@@ -57,7 +57,17 @@ export type DashboardPeriod = 'mes_actual' | 'ultimos_30d' | 'historico'
 export interface ChartPoint {
   label: string
   amount: number
+  // Lo que tocaba cobrar en esta ranura (cuotas que vencen): interés + capital esperados
+  expected?: number
   date?: string
+}
+
+// Cumplimiento del periodo: cuotas que vencen en él frente a lo ya cobrado de esas cuotas
+export interface PeriodSummary {
+  esperado: number
+  cobrado: number
+  pendiente: number
+  cumplimientoPct: number
 }
 
 export interface LoanSummaryMetrics {

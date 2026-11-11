@@ -12,11 +12,12 @@ import Animated, {
 } from 'react-native-reanimated'
 import { scheduleOnRN } from 'react-native-worklets'
 import { LineChart as LineChartIcon, BarChart3 } from 'lucide-react-native'
-import { ChartPoint, DashboardPeriod } from '../types'
+import { ChartPoint, DashboardPeriod, PeriodSummary } from '../types'
 import { formatCOP } from '../../../shared/utils/currency'
 import { AnimatedPressable } from '../../../shared/components/AnimatedPressable'
 import { AppText } from '../../../shared/ui/AppText'
 import { Card } from '../../../shared/ui/Card'
+import { ProgressBar } from '../../../shared/ui/ProgressBar'
 import { colors, fonts } from '../../../shared/theme/tokens'
 import { DURATION, EASE_OUT } from '../../../shared/motion'
 import { haptic } from '../../../shared/haptics'
@@ -25,6 +26,7 @@ interface AreaChartCardProps {
   readonly chartData: ChartPoint[]
   readonly totalRecaudado: number
   readonly period: DashboardPeriod
+  readonly summary?: PeriodSummary
 }
 
 /**
@@ -130,7 +132,7 @@ const GrowingBar: React.FC<{
   return <AnimatedRect x={x} width={width} rx={14} fill={fill} animatedProps={animatedProps} />
 }
 
-export const AreaChartCard: React.FC<AreaChartCardProps> = ({ chartData, totalRecaudado, period }) => {
+export const AreaChartCard: React.FC<AreaChartCardProps> = ({ chartData, totalRecaudado, period, summary }) => {
   const [innerWidth, setInnerWidth] = useState(318)
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [displayMode, setDisplayMode] = useState<'area' | 'barras'>('area')
@@ -152,7 +154,9 @@ export const AreaChartCard: React.FC<AreaChartCardProps> = ({ chartData, totalRe
   }, [chartData])
 
   const n = activePoints.length
-  const maxVal = Math.max(...activePoints.map((p) => p.amount), 1)
+  // La escala incluye lo esperado, para que la linea de por cobrar siempre quepa
+  const maxVal = Math.max(...activePoints.map((p) => Math.max(p.amount, p.expected ?? 0)), 1)
+  const hasExpected = activePoints.some((p) => (p.expected ?? 0) > 0)
 
   // Geometría: cada punto vive en el centro de su ranura
   const chartHeight = 132
@@ -164,12 +168,22 @@ export const AreaChartCard: React.FC<AreaChartCardProps> = ({ chartData, totalRe
     () =>
       activePoints.map((p, i) => {
         const ratio = p.amount / maxVal
-        return { x: (i + 0.5) * slot, y: baselineY - ratio * (baselineY - topPadding), ...p }
+        const expectedRatio = (p.expected ?? 0) / maxVal
+        return {
+          x: (i + 0.5) * slot,
+          y: baselineY - ratio * (baselineY - topPadding),
+          ey: baselineY - expectedRatio * (baselineY - topPadding),
+          ...p,
+        }
       }),
     [activePoints, maxVal, slot]
   )
 
   const curvePath = useMemo(() => buildMonotoneCubicPath(points), [points])
+  const expectedPath = useMemo(
+    () => buildMonotoneCubicPath(points.map((p) => ({ x: p.x, y: p.ey }))),
+    [points]
+  )
   const areaPath = useMemo(() => {
     if (points.length < 2) return ''
     const first = points[0]
@@ -226,14 +240,14 @@ export const AreaChartCard: React.FC<AreaChartCardProps> = ({ chartData, totalRe
   const gesture = Gesture.Exclusive(pan, tap)
 
   const active = selectedIndex !== null && points[selectedIndex] ? points[selectedIndex] : null
-  const replayKey = `${displayMode}-${period}-${activePoints.map((p) => p.amount).join(',')}`
+  const replayKey = `${displayMode}-${period}-${activePoints.map((p) => `${p.amount}/${p.expected ?? 0}`).join(',')}`
 
   const periodSubheading =
     period === 'mes_actual'
-      ? 'Flujo recibido este mes'
+      ? 'Cobrado frente a lo que vencía este mes'
       : period === 'ultimos_30d'
-      ? 'Flujo recibido últimos 30 días'
-      : 'Histórico semestral de recaudos'
+      ? 'Cobrado frente a lo que vencía en 30 días'
+      : 'Cobrado frente a lo que vencía, últimos 6 meses'
 
   return (
     <Card variant="dark" style={{ padding: 20, gap: 16 }}>
@@ -303,9 +317,9 @@ export const AreaChartCard: React.FC<AreaChartCardProps> = ({ chartData, totalRe
                 {formatCOP(active.amount)}
               </AppText>
             </View>
-            <View style={{ height: 24, paddingHorizontal: 10, borderRadius: 999, backgroundColor: colors.card, justifyContent: 'center' }}>
+            <View style={{ minHeight: 24, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.card, justifyContent: 'center' }}>
               <Text style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 11 }}>
-                {maxVal > 0 ? `${((active.amount / maxVal) * 100).toFixed(0)}% del pico` : '0%'}
+                {(active.expected ?? 0) > 0 ? `${formatCOP(active.expected ?? 0)} por cobrar` : 'Sin cuotas que vencían'}
               </Text>
             </View>
           </View>
@@ -315,6 +329,49 @@ export const AreaChartCard: React.FC<AreaChartCardProps> = ({ chartData, totalRe
             <AppText variant="lbl" tone="muted2" style={{ marginLeft: 6, fontSize: 13, fontFamily: fonts.medium }}>
               COP
             </AppText>
+          </View>
+        )}
+      </View>
+
+      {/* Lectura del periodo: cuánto vencía, cuánto se cobró y cuánto falta */}
+      {summary && summary.esperado > 0 ? (
+        <View style={{ gap: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <AppText variant="lbl">Cumplimiento de lo que vencía</AppText>
+            <Text style={{ color: summary.pendiente > 0 ? colors.warm : colors.okSoft, fontFamily: fonts.semibold, fontSize: 14 }}>
+              {summary.cumplimientoPct.toFixed(0)}%
+            </Text>
+          </View>
+          <ProgressBar percent={summary.cumplimientoPct} fill={summary.pendiente > 0 ? colors.warm : colors.ok} track={colors.line} />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+            <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 12 }}>
+              Vencía <Text style={{ color: colors.warm, fontFamily: fonts.medium }}>{formatCOP(summary.esperado)}</Text>
+            </Text>
+            {summary.pendiente > 0 ? (
+              <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 12 }}>
+                Falta <Text style={{ color: colors.warm, fontFamily: fonts.medium }}>{formatCOP(summary.pendiente)}</Text>
+              </Text>
+            ) : (
+              <Text style={{ color: colors.okSoft, fontFamily: fonts.medium, fontSize: 12 }}>Todo cobrado</Text>
+            )}
+          </View>
+        </View>
+      ) : (
+        <AppText variant="lbl" tone="muted2">
+          No vencía ninguna cuota en este periodo.
+        </AppText>
+      )}
+
+      {/* Leyenda de la gráfica */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.warm }} />
+          <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 12 }}>Cobrado</Text>
+        </View>
+        {hasExpected && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ width: 14, height: 0, borderTopWidth: 2, borderColor: colors.muted2, borderStyle: 'dashed' }} />
+            <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 12 }}>Por cobrar (cuotas)</Text>
           </View>
         )}
       </View>
@@ -337,9 +394,23 @@ export const AreaChartCard: React.FC<AreaChartCardProps> = ({ chartData, totalRe
                 const barWidth = Math.min(40, slot * 0.6)
                 const h = Math.max(4, baselineY - pt.y)
                 const isSel = selectedIndex === i
+                const expectedH = baselineY - pt.ey
                 return (
+                  <React.Fragment key={`bar-${i}`}>
+                    {expectedH > 2 && (
+                      <Rect
+                        x={pt.x - barWidth / 2}
+                        y={pt.ey}
+                        width={barWidth}
+                        height={expectedH}
+                        rx={14}
+                        fill="none"
+                        stroke={colors.muted2}
+                        strokeWidth={1.5}
+                        strokeDasharray="4 4"
+                      />
+                    )}
                   <GrowingBar
-                    key={`bar-${i}`}
                     x={pt.x - barWidth / 2}
                     width={barWidth}
                     height={h}
@@ -348,11 +419,22 @@ export const AreaChartCard: React.FC<AreaChartCardProps> = ({ chartData, totalRe
                     replayKey={replayKey}
                     fill={isSel ? colors.warm : pt.amount > 0 ? '#3A3A3F' : colors.line}
                   />
+                  </React.Fragment>
                 )
               })}
 
             {displayMode === 'area' && (
               <>
+                {hasExpected && (
+                  <Path
+                    d={expectedPath}
+                    fill="none"
+                    stroke={colors.muted2}
+                    strokeWidth={1.5}
+                    strokeDasharray="5 5"
+                    strokeLinecap="round"
+                  />
+                )}
                 <Path d={areaPath} fill="url(#areaFill)" />
                 <Path d={curvePath} fill="none" stroke={colors.warm} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                 {points.map((pt, i) => {
@@ -390,7 +472,7 @@ export const AreaChartCard: React.FC<AreaChartCardProps> = ({ chartData, totalRe
                 releaseSelect()
               }}
               accessibilityRole="button"
-              accessibilityLabel={`${pt.label}: ${formatCOP(pt.amount)}`}
+              accessibilityLabel={`${pt.label}: cobrado ${formatCOP(pt.amount)}, por cobrar ${formatCOP(pt.expected ?? 0)}`}
               accessibilityState={{ selected: isSel }}
               style={{ height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }}
             >

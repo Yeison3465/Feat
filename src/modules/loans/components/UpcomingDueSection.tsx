@@ -54,12 +54,15 @@ export const UpcomingDueSection: React.FC<UpcomingDueSectionProps> = ({ obligati
 
   return (
     <View style={{ gap: 4 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <AppText variant="sec">Próximos vencimientos</AppText>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+        {/* El título cede espacio (baja de línea) antes de tocar el enlace */}
+        <AppText variant="sec" style={{ flexShrink: 1 }}>
+          Próximos vencimientos
+        </AppText>
         <AnimatedPressable
           onPress={() => router.push({ pathname: '/vencimientos', params: { tab: 'proximos' } })}
           accessibilityRole="link"
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44 }}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44, flexShrink: 0 }}
         >
           <AppText variant="amt" style={{ fontSize: 13 }}>
             Ver agenda ({obligations.length})

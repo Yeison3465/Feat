@@ -52,6 +52,7 @@ export default function DashboardScreen() {
     dashboardPeriod,
     setDashboardPeriod,
     chartData,
+    periodSummary,
     upcomingObligations,
     activeBorrowers,
   } = useLoans()
@@ -92,11 +93,6 @@ export default function DashboardScreen() {
           <DashboardSkeleton />
         ) : (
           <>
-        {/* Selector de periodo (RF-013) */}
-        <Animated.View entering={enter()}>
-          <DashboardPeriodSelector selectedPeriod={dashboardPeriod} onSelectPeriod={setDashboardPeriod} />
-        </Animated.View>
-
         {/* Alerta urgente: personas en mora */}
         <Animated.View entering={enter()}>
           <OverdueAlertBanner
@@ -223,13 +219,18 @@ export default function DashboardScreen() {
           />
         </Animated.View>
 
+        {/* Selector de periodo (RF-013): gobierna la gráfica y lo que va debajo */}
+        <Animated.View entering={enter()} style={{ paddingTop: 8 }}>
+          <DashboardPeriodSelector selectedPeriod={dashboardPeriod} onSelectPeriod={setDashboardPeriod} />
+        </Animated.View>
+
         {/* Pagos del periodo */}
         <Animated.View entering={enter()}>
-          <AreaChartCard chartData={chartData} totalRecaudado={metrics.recaudoPeriodo} period={dashboardPeriod} />
+          <AreaChartCard chartData={chartData} totalRecaudado={metrics.recaudoPeriodo} period={dashboardPeriod} summary={periodSummary} />
         </Animated.View>
 
         {/* Métricas financieras (SCR-04 / FL-08) */}
-        <Animated.View entering={enter()} style={{ paddingTop: 8 }}>
+        <Animated.View entering={enter()}>
           <DashboardMetricsGrid metrics={metrics} />
         </Animated.View>
 
