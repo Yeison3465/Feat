@@ -23,3 +23,9 @@ docs/
 .vscode/
 .idea/
 
+
+# Agent tooling (symlinks fail on Windows, not needed in the APK)
+.claude/
+graphify-out/
+skills-lock.json
+CLAUDE.md
