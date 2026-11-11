@@ -9,6 +9,8 @@ export interface CreatePaymentDTO {
   metodo_pago: PaymentMethod
   notas?: string | null
   clave_idempotencia?: string
+  // Parte del monto que el usuario destina directo a capital (el resto sigue mora -> interés -> capital)
+  monto_capital?: number | null
 }
 
 export interface PaymentDistribution {
@@ -60,6 +62,9 @@ export interface PaymentAllocationPreview {
   liquidaCreditoCompleto: boolean
   excedeSaldoTotal: boolean
   saldoExigibleTotal: number
+  capitalPendienteActual: number
+  capitalDirectoExcedeMonto: boolean
+  capitalDirectoExcedeCapital: boolean
 }
 
 export interface InstallmentPaymentItem {

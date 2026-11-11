@@ -393,6 +393,7 @@ export type Database = {
           p_fecha_recepcion?: string
           p_metodo_pago?: string
           p_monto: number
+          p_monto_capital?: number
           p_notas?: string
           p_prestamo_id: string
         }

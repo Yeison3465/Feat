@@ -13,8 +13,14 @@ export const paymentsService = {
   /**
    * Calcula en memoria la previsualización exacta de cómo se distribuirá un monto de pago
    * siguiendo la prelación aprobada (1° Mora -> 2° Interés -> 3° Capital) antes de confirmar (FL-04 paso 6).
+   * Si se indica `montoCapital`, esa parte se aplica primero a capital (abono a capital elegido por el
+   * usuario) y el resto sigue la prelación normal. Replica registrar_pago_transaccional.
    */
-  previewAllocation(loan: LoanWithDetails, monto: number): PaymentAllocationPreview {
+  previewAllocation(
+    loan: LoanWithDetails,
+    monto: number,
+    montoCapital = 0
+  ): PaymentAllocationPreview {
     const cuotas = loan.cuotas || []
     const totalCapitalPagado = cuotas.reduce((acc, c) => acc + (c.capital_pagado || 0), 0)
     const capitalPendienteActual = Math.max(0, loan.capital_original - totalCapitalPagado)
@@ -33,10 +39,15 @@ export const paymentsService = {
       capitalPendienteActual + interesPendienteActual + moraPendienteActual
 
     const montoLimpio = Math.max(0, Math.round(monto || 0))
-    let restante = montoLimpio
+    const capitalDirecto = Math.max(0, Math.round(montoCapital || 0))
+    const capitalDirectoExcedeMonto = capitalDirecto > montoLimpio
+    const capitalDirectoExcedeCapital = capitalDirecto > capitalPendienteActual
+    const capitalAplicado = Math.min(capitalDirecto, montoLimpio)
+
+    let restante = montoLimpio - capitalAplicado
     let abonoMora = 0
     let abonoInteres = 0
-    let abonoCapital = 0
+    let abonoCapital = capitalAplicado
 
     for (const cuota of cuotasPendientes) {
       if (restante <= 0) break
@@ -89,6 +100,9 @@ export const paymentsService = {
         moraPendienteActual - abonoMora <= 0,
       excedeSaldoTotal: saldoExigibleTotal > 0 && montoLimpio > saldoExigibleTotal,
       saldoExigibleTotal,
+      capitalPendienteActual,
+      capitalDirectoExcedeMonto,
+      capitalDirectoExcedeCapital,
     }
   },
 
@@ -106,6 +120,10 @@ export const paymentsService = {
       throw new Error('El monto a pagar debe ser mayor a 0.')
     }
 
+    if (dto.monto_capital && dto.monto_capital > dto.monto) {
+      throw new Error('El abono a capital no puede superar el monto del pago.')
+    }
+
     const idempotencyKey = dto.clave_idempotencia || generateUUID()
 
     const { data: rpcData, error: rpcError } = await supabase.rpc(
@@ -117,6 +135,10 @@ export const paymentsService = {
         p_fecha_recepcion: dto.fecha_recepcion,
         p_metodo_pago: dto.metodo_pago,
         p_notas: dto.notas?.trim() || undefined,
+        // Solo se envía cuando hay abono a capital: así un pago normal no depende de la función nueva
+        ...(dto.monto_capital && dto.monto_capital > 0
+          ? { p_monto_capital: Math.round(dto.monto_capital) }
+          : {}),
       }
     )
 

@@ -99,6 +99,8 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
 
   // Estados del formulario
   const [montoText, setMontoText] = useState<string>('')
+  // Abono a capital opcional: vacío = pago normal (mora -> interés -> capital)
+  const [capitalText, setCapitalText] = useState<string>('')
   const [metodoPago, setMetodoPago] = useState<PaymentMethod>('efectivo')
   const [notas, setNotas] = useState<string>('')
 
@@ -120,12 +122,26 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
   const [formError, setFormError] = useState<string | null>(null)
 
   const montoNum = parseCOP(montoText)
+  const capitalNum = parseCOP(capitalText)
 
   // Previsualización de distribución en vivo (FL-04 paso 6)
   const preview = useMemo(
-    () => paymentsService.previewAllocation(loan, montoNum),
-    [loan, montoNum]
+    () => paymentsService.previewAllocation(loan, montoNum, capitalNum),
+    [loan, montoNum, capitalNum]
   )
+
+  const handleCapitalChange = (val: string) => {
+    setCapitalText(val.replace(/[^0-9]/g, ''))
+    idempotencyKeyRef.current = generateUUID()
+    if (montoError) setMontoError(null)
+  }
+
+  const handleAllToCapital = () => {
+    haptic('selection')
+    setCapitalText(montoNum > 0 ? String(montoNum) : '')
+    idempotencyKeyRef.current = generateUUID()
+    if (montoError) setMontoError(null)
+  }
 
   const handleMontoChange = (val: string) => {
     const clean = val.replace(/[^0-9]/g, '')
@@ -155,6 +171,14 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
         `El monto supera el saldo total adeudado (${formatCOP(saldoExigibleTotal)} COP).`
       )
       valid = false
+    } else if (preview.capitalDirectoExcedeMonto) {
+      setMontoError('El abono a capital no puede superar el monto recibido.')
+      valid = false
+    } else if (preview.capitalDirectoExcedeCapital) {
+      setMontoError(
+        `El abono a capital supera el capital pendiente (${formatCOP(preview.capitalPendienteActual)} COP).`
+      )
+      valid = false
     }
 
     return valid
@@ -171,6 +195,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
         metodo_pago: metodoPago,
         notas: notas.trim() || null,
         clave_idempotencia: idempotencyKeyRef.current,
+        monto_capital: capitalNum > 0 ? capitalNum : undefined,
       })
       haptic('success')
     } catch (err: any) {
@@ -286,6 +311,45 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ loan, onSubmit, loadin
                   <DollarSign size={18} color={error || exceeds ? colors.danger : focused ? colors.warm : colors.muted2} />
                 )}
               />
+
+              <Text style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, marginLeft: 4, marginTop: -4 }}>
+                El monto recibido se aplica en este orden: primero la mora, luego el interés y al final el capital.
+              </Text>
+
+              {/* Abono a capital opcional: la parte del monto que reduce el capital */}
+              <Field
+                label="Abono a capital (opcional)"
+                hint="Vacío = pago normal"
+                value={capitalText}
+                onChangeText={handleCapitalChange}
+                placeholder="0"
+                keyboardType="numeric"
+                suffix="COP"
+                prefix={({ focused, error }) => (
+                  <TrendingDown size={18} color={error ? colors.danger : focused ? colors.warm : colors.muted2} />
+                )}
+              />
+              <Text style={{ color: colors.muted2, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, marginLeft: 4, marginTop: -4 }}>
+                Si escribes un valor, esa parte va directo a capital y el resto sigue el orden de arriba.
+              </Text>
+              {montoNum > 0 && capitalNum !== montoNum && (
+                <AnimatedPressable
+                  onPress={handleAllToCapital}
+                  accessibilityRole="button"
+                  style={{
+                    alignSelf: 'flex-start',
+                    minHeight: 44,
+                    paddingHorizontal: 16,
+                    borderRadius: 999,
+                    justifyContent: 'center',
+                    backgroundColor: colors.card,
+                    borderWidth: 1,
+                    borderColor: colors.line,
+                  }}
+                >
+                  <Text style={{ color: colors.warm, fontFamily: fonts.medium, fontSize: 13 }}>Todo a capital</Text>
+                </AnimatedPressable>
+              )}
 
               {/* Atajos de monto según la modalidad */}
               {quickChips.length > 0 && (
